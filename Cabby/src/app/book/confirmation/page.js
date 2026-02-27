@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Download, CheckCircle, MapPin } from "lucide-react";
 
-export default function BookingConfirmation() {
+function ConfirmationContent() {
     const searchParams = useSearchParams();
     const reference = searchParams.get("reference");
     const [booking, setBooking] = useState(null);
@@ -107,5 +107,13 @@ export default function BookingConfirmation() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function BookingConfirmation() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-background flex justify-center items-center text-white">Loading...</div>}>
+            <ConfirmationContent />
+        </Suspense>
     );
 }
