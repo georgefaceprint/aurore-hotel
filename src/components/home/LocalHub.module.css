@@ -1,0 +1,142 @@
+.section {
+    padding: 4rem 0;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    margin-bottom: 2rem;
+}
+
+.label {
+    color: var(--color-green-primary);
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+}
+
+.title {
+    font-size: 2rem;
+    margin-top: 0.5rem;
+}
+
+.select {
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+    background: var(--bg-primary);
+    font-size: 1rem;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 2rem;
+}
+
+@media (max-width: 768px) {
+    .header {
+        flex-direction: column;
+        align-items: start;
+        gap: 1rem;
+    }
+
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.mapCard {
+    background: var(--color-green-dark);
+    color: white;
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 250px;
+    position: relative;
+    overflow: hidden;
+}
+
+.mapVisual {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.5;
+    font-size: 4rem;
+}
+
+.mpInfo {
+    position: relative;
+    z-index: 2;
+}
+
+.mpInfo h4 {
+    margin-bottom: 0.5rem;
+}
+
+.mpInfo p {
+    font-size: 0.9rem;
+    opacity: 0.8;
+    margin-bottom: 1rem;
+}
+
+.updatesList {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.updateItem {
+    background: var(--bg-card);
+    padding: 1rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: transform 0.2s;
+}
+
+.updateItem:hover {
+    transform: translateX(5px);
+}
+
+.updateType {
+    font-size: 0.7rem;
+    font-weight: bold;
+    background: var(--color-gray-200);
+    color: var(--color-gray-800);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+[data-theme='dark'] .updateType {
+    background: var(--color-gray-800);
+    color: var(--color-gray-200);
+}
+
+.updateTitle {
+    flex: 1;
+    font-size: 1rem;
+    margin: 0;
+}
+
+.updateDate {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.viewMore {
+    text-align: left;
+    color: var(--color-green-primary);
+    font-weight: 600;
+    margin-top: 0.5rem;
+}
