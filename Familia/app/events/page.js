@@ -3,37 +3,108 @@ import { useState } from 'react';
 
 export default function EventsPage() {
     const [events, setEvents] = useState([
-        { id: 1, title: 'Sifuna Clan Annual Gathering', date: '2026-12-15', location: 'Nairobi Heritage Center', attendance: 85 },
-        { id: 2, title: 'Ancestral Mapping Workshop', date: '2026-06-10', location: 'Online (Zoom)', attendance: 200 },
+        { id: 1, title: 'Watu Heritage Gathering', date: '2026-12-15', location: 'Nairobi Heritage Center', attendees: 842, type: 'GRAND', image: '🏙️' },
+        { id: 2, title: 'Oral History Mapping', date: '2026-06-10', location: 'Virtual (Zoom)', attendees: 120, type: 'CLAN', image: '🎙️' },
+        { id: 3, title: 'Ndlela Family Reunion', date: '2026-08-22', location: 'Nakuru, Kenya', attendees: 56, type: 'PRIVATE', image: '🌳' },
     ]);
 
     return (
-        <div style={{ maxWidth: '800px', margin: '2rem auto' }}>
-            <h1>Community Events</h1>
-            <p style={{ color: 'var(--text-secondary)' }}>Connect with your heritage through physical and virtual gatherings.</p>
+        <div className="container" style={{ minHeight: '100vh', paddingBottom: '100px' }}>
+            <div style={{ marginBottom: '3rem' }}>
+                <h1 style={{ fontSize: '2.5rem', color: '#fff', marginBottom: '0.5rem' }}>Community Events</h1>
+                <p style={{ color: 'var(--text-secondary)', maxWidth: '500px' }}>Join physical and virtual gatherings to preserve and celebrate our collective ancestry.</p>
+            </div>
 
-            <div style={{ marginTop: '2rem' }}>
-                {events.map(event => (
-                    <div key={event.id} className="glass" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                            <h3 style={{ margin: 0 }}>{event.title}</h3>
-                            <p style={{ margin: '0.4rem 0', color: 'var(--accent)', fontWeight: 'bold' }}>{event.date} • {event.location}</p>
-                            <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{event.attendance} people attending</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
+                {events.map((event, idx) => (
+                    <div key={event.id} className="glass animate-fade-in" style={{
+                        padding: 0,
+                        overflow: 'hidden',
+                        animationDelay: `${idx * 0.1}s`,
+                        display: 'flex',
+                        flexDirection: 'column'
+                    }}>
+                        <div style={{
+                            height: '160px',
+                            background: 'linear-gradient(45deg, #1e1b4b 0%, #0c0a09 100%)',
+                            position: 'relative',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '4rem'
+                        }}>
+                            {event.image}
+                            <div style={{
+                                position: 'absolute',
+                                top: '1rem',
+                                right: '1rem',
+                                padding: '4px 12px',
+                                borderRadius: '20px',
+                                background: 'rgba(0,0,0,0.6)',
+                                backdropFilter: 'blur(10px)',
+                                fontSize: '0.7rem',
+                                fontWeight: '700',
+                                color: '#fff',
+                                border: '1px solid rgba(255,255,255,0.1)'
+                            }}>{event.type} GATHERING</div>
                         </div>
-                        <button style={{ background: 'var(--accent)', color: 'white', border: 'none', padding: '0.8rem 1.5rem', borderRadius: '6px', fontWeight: 'bold' }}>
-                            RSVP
-                        </button>
+
+                        <div style={{ padding: '1.5rem' }}>
+                            <h3 style={{ fontSize: '1.25rem', color: '#fff', marginBottom: '0.75rem' }}>{event.title}</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                                <div style={itemDetail}>
+                                    <span style={{ fontSize: '1rem' }}>📅</span>
+                                    <div>
+                                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#fff', fontWeight: '600' }}>{new Date(event.date).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                                        <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Event Date</p>
+                                    </div>
+                                </div>
+                                <div style={itemDetail}>
+                                    <span style={{ fontSize: '1rem' }}>📍</span>
+                                    <div>
+                                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#fff', fontWeight: '600' }}>{event.location}</p>
+                                        <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Venue / Link</p>
+                                    </div>
+                                </div>
+                                <div style={itemDetail}>
+                                    <span style={{ fontSize: '1rem' }}>👥</span>
+                                    <div>
+                                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#fff', fontWeight: '600' }}>{event.attendees.toLocaleString()} RSVPs</p>
+                                        <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Confirmed Attendees</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <button className="btn-primary" style={{ width: '100%', padding: '0.85rem' }}>Reserve Your Spot</button>
+                        </div>
                     </div>
                 ))}
             </div>
 
-            <div className="glass" style={{ marginTop: '2rem', background: 'var(--accent-muted)', border: '1px solid var(--accent)' }}>
-                <h4 style={{ margin: 0 }}>Host a Clan Event?</h4>
-                <p style={{ fontSize: '0.9rem', margin: '0.5rem 0' }}>Clan administrators can host events and activities. Premium event management tools require a <strong>MyHazina Clan Subscription</strong>.</p>
-                <a href="https://myhazina.org/funeral-plans" target="_blank" style={{ color: 'var(--accent)', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                    Upgrade Clan &rarr;
-                </a>
+            {/* Host Section */}
+            <div className="glass animate-fade-in" style={{
+                marginTop: '4rem',
+                padding: '2.5rem',
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%)',
+                textAlign: 'center',
+                border: '1px solid rgba(99, 102, 241, 0.2)'
+            }}>
+                <h2 style={{ fontSize: '1.75rem', color: '#fff', marginBottom: '1rem' }}>Host Your Own Family Event?</h2>
+                <p style={{ color: 'var(--text-secondary)', maxWidth: '500px', margin: '0 auto 2rem auto', fontSize: '1rem' }}>
+                    Clan administrators can organize gatherings, fundraisers, and workshops. Premium event management is included with <strong>MyHazina Heritage Subscriptions</strong>.
+                </p>
+                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button className="btn-secondary" style={{ padding: '0.75rem 2rem' }}>Learn More</button>
+                    <a href="https://myhazina.org" target="_blank">
+                        <button className="btn-primary" style={{ padding: '0.75rem 2rem' }}>Upgrade Plan</button>
+                    </a>
+                </div>
             </div>
         </div>
     );
 }
+
+const itemDetail = {
+    display: 'flex',
+    gap: '1rem',
+    alignItems: 'center'
+};
