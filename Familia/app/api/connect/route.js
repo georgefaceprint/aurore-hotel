@@ -45,7 +45,23 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-    const { personId, relativeId, relationship } = await request.json();
+    const { personId, relativeId, relationship, action } = await request.json();
+
+    // Action handling for Approvals (Delegated Administration)
+    if (action === 'VERIFY') {
+        const query = `
+            MATCH (p1:Person)-[r]->(p2:Person)
+            WHERE id(r) = $relationshipId
+            SET r.status = 'VERIFIED', r.verifiedAt = datetime()
+            RETURN p1.name as from, type(r) as rel, p2.name as to
+        `;
+        try {
+            const records = await executeQuery(query, { relationshipId: parseInt(relativeId) });
+            return Response.json({ success: true, message: 'Relationship verified' });
+        } catch (err) {
+            return Response.json({ error: err.message }, { status: 500 });
+        }
+    }
 
     const allowedRelationships = ['SIBLING_OF', 'PARENT_OF', 'SPOUSE_OF', 'CHILD_OF'];
     if (!allowedRelationships.includes(relationship)) {
@@ -53,17 +69,19 @@ export async function POST(request) {
     }
 
     const query = `
-    MATCH (p1:Person {id: $personId})
-    MATCH (p2:Person {id: $relativeId})
-    MERGE (p1)-[r:${relationship}]->(p2)
-    RETURN p1.name as from, type(r) as rel, p2.name as to
-  `;
+        MATCH (p1:Person {id: $personId})
+        MATCH (p2:Person {id: $relativeId})
+        MERGE (p1)-[r:${relationship}]->(p2)
+        ON CREATE SET r.status = 'PENDING', r.requestedAt = datetime()
+        RETURN p1.name as from, type(r) as rel, p2.name as to, r.status as status
+    `;
 
     try {
         const records = await executeQuery(query, { personId, relativeId });
         if (records.length === 0) throw new Error('Person or Relative not found');
         return Response.json({
             success: true,
+            status: records[0].get('status'),
             connection: records[0].toObject()
         });
     } catch (err) {

@@ -11,15 +11,15 @@ export default function FamilyTree({ data }) {
         if (!data || !wrapperRef.current) return;
 
         const width = wrapperRef.current.clientWidth || 800;
-        const height = window.innerWidth < 768 ? 400 : 600; // Smaller height on mobile
+        const height = window.innerWidth < 768 ? 450 : 600;
 
         const svg = d3.select(svgRef.current)
             .attr('width', '100%')
             .attr('height', height)
             .attr('viewBox', `0 0 ${width} ${height}`)
-            .style('background', 'var(--card, #1a1a1a)')
-            .style('border-radius', '16px')
-            .style('box-shadow', '0 8px 32px rgba(0,0,0,0.2)');
+            .style('background', 'transparent')
+            .style('border-radius', 'var(--radius-lg)')
+            .style('overflow', 'visible');
 
         svg.selectAll('*').remove();
 
@@ -33,22 +33,19 @@ export default function FamilyTree({ data }) {
 
         svg.call(zoom);
 
-        // Dynamic spacing based on screen size
-        const nodeW = 160;
-        const nodeH = 60;
-        const xSpacing = window.innerWidth < 768 ? 160 : 220;
-        const ySpacing = 80;
+        const nodeW = 180;
+        const nodeH = 70;
+        const xSpacing = window.innerWidth < 768 ? 180 : 260;
+        const ySpacing = 100;
 
         const tree = d3.tree().nodeSize([ySpacing, xSpacing]);
         const root = d3.hierarchy(data);
         tree(root);
 
-        // Center the tree layout (Horizontal tree)
         const xOffset = window.innerWidth < 768 ? width / 3 : width / 4;
         const yOffset = height / 2;
 
-        // Initial zoom to fit
-        const initialScale = window.innerWidth < 768 ? 0.6 : 0.8;
+        const initialScale = window.innerWidth < 768 ? 0.5 : 0.75;
         svg.call(zoom.transform, d3.zoomIdentity.translate(xOffset, yOffset).scale(initialScale));
 
         // Links
@@ -63,14 +60,10 @@ export default function FamilyTree({ data }) {
             .attr('class', 'link')
             .attr('d', linkGenerator)
             .attr('fill', 'none')
-            .attr('stroke', 'var(--accent-muted, #444)')
-            .attr('stroke-width', 2)
-            .attr('stroke-dasharray', d => {
-                // Dashed line if text includes 'Spouse'
-                return d.target.data.name.includes('(Spouse)') ? '6,6' : 'none';
-            })
-            // Add a subtle shadow to paths
-            .style('filter', 'drop-shadow(0px 2px 4px rgba(0,0,0,0.3))');
+            .attr('stroke', 'rgba(99, 102, 241, 0.2)')
+            .attr('stroke-width', 2.5)
+            .attr('stroke-dasharray', d => d.target.data.name.includes('(Spouse)') ? '8,6' : 'none')
+            .style('filter', 'drop-shadow(0px 4px 12px rgba(99, 102, 241, 0.1))');
 
         // Nodes
         const nodes = g.selectAll('.node')
@@ -80,54 +73,48 @@ export default function FamilyTree({ data }) {
             .attr('class', 'node')
             .attr('transform', d => `translate(${d.y},${d.x})`);
 
-        // Dimensions for node cards
         const cardW = nodeW;
         const cardH = nodeH;
 
-        // Add foreignObject for HTML-like rendering of cards
         const fo = nodes.append('foreignObject')
             .attr('x', -cardW / 2)
             .attr('y', -cardH / 2)
             .attr('width', cardW)
             .attr('height', cardH)
-            .style('overflow', 'visible'); // needed for shadows
+            .style('overflow', 'visible');
 
-        // Generate the card content
         fo.append('xhtml:div')
             .style('width', `${cardW}px`)
             .style('height', `${cardH}px`)
             .style('display', 'flex')
             .style('align-items', 'center')
-            .style('justify-content', 'center')
-            .style('flex-direction', 'column')
+            .style('gap', '12px')
             .style('background', d => {
                 if (searchTerm && d.data.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-                    return 'var(--accent, #3b82f6)';
+                    return 'var(--accent)';
                 }
-                // Root node styling
-                if (d.depth === 0) return '#2a2a2a';
-                return '#1f1f1f';
+                return 'rgba(255, 255, 255, 0.05)';
             })
+            .style('backdrop-filter', 'blur(10px)')
             .style('border', d => {
                 if (searchTerm && d.data.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-                    return '2px solid white';
+                    return '2px solid #fff';
                 }
-                if (d.depth === 0) return '2px solid var(--accent, #3b82f6)';
-                return '1px solid #333';
+                if (d.depth === 0) return '2px solid var(--accent)';
+                return '1px solid rgba(255, 255, 255, 0.1)';
             })
-            .style('border-radius', '12px')
+            .style('border-radius', '16px')
             .style('color', '#fff')
-            .style('font-family', 'var(--font-inter), system-ui, sans-serif')
-            .style('font-size', '14px')
+            .style('font-family', 'var(--font-sans)')
             .style('box-shadow', d => {
                 if (searchTerm && d.data.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-                    return '0 0 20px rgba(59, 130, 246, 0.6)';
+                    return '0 0 30px rgba(99, 102, 241, 0.6)';
                 }
-                return '0 4px 12px rgba(0,0,0,0.4)';
+                return '0 8px 16px rgba(0,0,0,0.5)';
             })
-            .style('padding', '6px 12px')
+            .style('padding', '12px')
             .style('box-sizing', 'border-box')
-            .style('transition', 'all 0.3s ease')
+            .style('transition', 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)')
             .html(d => {
                 let mainText = d.data.name;
                 let subText = d.depth === 0 ? 'Progenitor' : 'Descendant';
@@ -138,96 +125,111 @@ export default function FamilyTree({ data }) {
                     subText = match[2];
                 }
 
+                const initial = mainText.charAt(0);
+                const isHighlight = searchTerm && d.data.name.toLowerCase().includes(searchTerm.toLowerCase());
+
                 return `
-                     <div style="font-weight: 600; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 100%; font-size: 14px;">
-                        ${mainText}
-                     </div>
-                     <div style="font-size: 11px; font-weight: 500; opacity: 0.6; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px;">
-                        ${subText}
-                     </div>
+                    <div style="width: 40px; height: 40px; border-radius: 10px; background: ${isHighlight ? 'rgba(255,255,255,0.2)' : 'linear-gradient(135deg, var(--accent), var(--accent-secondary))'}; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.1rem; border: 1px solid rgba(255,255,255,0.1);">
+                        ${initial}
+                    </div>
+                    <div style="flex: 1; overflow: hidden;">
+                        <div style="font-weight: 700; font-family: 'Outfit'; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff;">
+                            ${mainText}
+                        </div>
+                        <div style="font-size: 0.65rem; font-weight: 700; opacity: 0.7; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.05em; color: ${isHighlight ? '#fff' : 'var(--accent)'};">
+                            ${subText}
+                        </div>
+                    </div>
                  `;
             });
 
     }, [data, searchTerm]);
 
     return (
-        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1.5rem', fontFamily: 'var(--font-inter)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--card, #111)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border, #222)' }}>
-                <div>
-                    <h3 style={{ margin: '0 0 4px 0', fontSize: '1.2rem', fontWeight: 'bold' }}>Interactive Explorer</h3>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary, #9ca3af)', maxWidth: '400px' }}>
-                        Pinch-to-zoom and drag to navigate through generations. Use the search to quickly highlight relatives across the entire lineage.
-                    </p>
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '1rem',
+                padding: '0 2rem 1.5rem 2rem'
+            }}>
+                <div style={{ flex: '1 1 300px' }}>
+                    <div style={{ position: 'relative' }}>
+                        <input
+                            type="search"
+                            placeholder="Find relatives in lineage..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '14px 16px 14px 48px',
+                                borderRadius: '999px',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                background: 'rgba(255,255,255,0.03)',
+                                color: '#fff',
+                                fontSize: '0.95rem',
+                                outline: 'none',
+                                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                                backdropFilter: 'blur(10px)',
+                            }}
+                            className="tree-search"
+                        />
+                        <span style={{ position: 'absolute', left: '20px', top: '16px', opacity: 0.5 }}>🔍</span>
+                    </div>
                 </div>
-                <div style={{ position: 'relative', flex: '1 1 250px', maxWidth: '300px' }}>
-                    <input
-                        type="search"
-                        placeholder="Search relatives..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        style={{
-                            width: '100%',
-                            padding: '12px 16px 12px 42px',
-                            borderRadius: '30px',
-                            border: '1px solid var(--border, #333)',
-                            background: 'rgba(255,255,255,0.05)',
-                            color: '#fff',
-                            fontSize: '0.95rem',
-                            outline: 'none',
-                            transition: 'all 0.2s ease',
-                            boxSizing: 'border-box'
-                        }}
-                    />
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        style={{
-                            position: 'absolute',
-                            left: '16px',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            width: '18px',
-                            height: '18px',
-                            color: 'var(--text-secondary, #9ca3af)',
-                        }}
-                    >
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    </svg>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '999px' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)' }}></span> Direct
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '999px' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', border: '1px dashed var(--accent)', background: 'transparent' }}></span> Marriage
+                    </div>
                 </div>
             </div>
 
-            <div ref={wrapperRef} style={{ width: '100%', position: 'relative' }}>
+            <div ref={wrapperRef} style={{ width: '100%', position: 'relative', minHeight: '500px' }}>
                 <svg ref={svgRef} style={{ display: 'block' }}></svg>
-                {/* Mobile overlay indicator */}
-                <div style={{
+
+                {/* Mobile hint */}
+                <div className="mobile-only" style={{
                     position: 'absolute',
-                    bottom: '16px',
-                    right: '16px',
-                    background: 'rgba(0,0,0,0.7)',
+                    bottom: '24px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    background: 'rgba(0,0,0,0.8)',
+                    backdropFilter: 'blur(12px)',
                     border: '1px solid rgba(255,255,255,0.1)',
-                    padding: '8px 16px',
-                    borderRadius: '20px',
-                    fontSize: '12px',
-                    color: '#ddd',
-                    fontWeight: '500',
+                    padding: '8px 20px',
+                    borderRadius: '999px',
+                    fontSize: '0.75rem',
+                    color: '#fff',
+                    fontWeight: '600',
                     pointerEvents: 'none',
-                    backdropFilter: 'blur(8px)',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px'
+                    gap: '8px',
+                    whiteSpace: 'nowrap'
                 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                    </svg>
-                    Pinch & Drag
+                    <span style={{ fontSize: '1.25rem' }}>🤏</span> Pinch to Zoom & Exploratory Drag
                 </div>
             </div>
+
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                .tree-search:focus {
+                    background: rgba(255,255,255,0.08) !important;
+                    border-color: var(--accent) !important;
+                    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+                }
+                @media (max-width: 767px) {
+                    .mobile-only { display: flex !important; }
+                }
+                @media (min-width: 768px) {
+                    .mobile-only { display: none !important; }
+                }
+            `}} />
         </div>
     );
 }

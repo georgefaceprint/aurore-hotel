@@ -1,5 +1,5 @@
 'use client';
-import FamilyTree from '@/components/FamilyTree';
+import FamilyTree from '../components/FamilyTree';
 import { useEffect, useState } from 'react';
 
 export default function HomePage() {
