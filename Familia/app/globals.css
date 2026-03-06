@@ -1,0 +1,65 @@
+:root {
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+  --accent: #b8860b; /* Legacy Gold */
+  --accent-muted: rgba(184, 134, 11, 0.1);
+  --border: #e2e8f0;
+  --card: #f8fafc;
+  --text-secondary: #64748b;
+  --font-serif: 'Playfair Display', serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+[data-theme='dark'] {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --accent: #d4af37;
+  --accent-muted: rgba(212, 175, 55, 0.1);
+  --border: #1e293b;
+  --card: #1e293b;
+  --text-secondary: #94a3b8;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+button {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
