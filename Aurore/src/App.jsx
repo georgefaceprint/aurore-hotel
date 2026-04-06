@@ -5,11 +5,11 @@ import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, update
 
 const translations = {
   en: {
-    heroTitle: "Aurore Ecce Venue",
-    heroSub: "Experience the dawn of elegance in Lubumbashi. Our premium multipurpose hall and world-class restaurant offer the perfect setting for your most significant moments.",
-    navVenue: "Our Venue",
+    heroTitle: "Aurore Ecce Hotel & Resort",
+    heroSub: "Experience the dawn of elegance in Lubumbashi. Premium guest rooms and luxury villas designed for your ultimate comfort and relaxation.",
+    navVenue: "Guest Rooms",
     navRestaurant: "Restaurant",
-    navBooking: "Book Now",
+    navBooking: "Book Your Stay",
     navAdmin: "Admin",
     hallTitle: "Exquisite Event Space",
     hallDesc: "From luxury weddings to professional conferences, our hall adapts to your needs with state-of-the-art facilities and elegant decor.",
@@ -63,14 +63,17 @@ const translations = {
     adminChats: "Staff Chats",
     available: "Available",
     booked: "Booked",
-    night: "night"
+    night: "night",
+    reserved: "RESERVED",
+    viewDetails: "View Photos",
+    roomImages: "Room Photos (comma separated URLs)"
   },
   fr: {
-    heroTitle: "Espace Aurore Ecce",
-    heroSub: "Vivez l'aube de l'élégance à Lubumbashi. Notre salle polyvalente de prestige et notre restaurant de classe mondiale offrent le cadre idéal pour vos moments les plus marquants.",
-    navVenue: "Notre Espace",
+    heroTitle: "Hôtel & Résidence Aurore Ecce",
+    heroSub: "Vivez l'aube de l'élégance à Lubumbashi. Des chambres d'hôtes de prestige et des villas de luxe conçues pour votre confort ultime.",
+    navVenue: "Nos Chambres",
     navRestaurant: "Restaurant",
-    navBooking: "Réserver",
+    navBooking: "Réserver un Séjour",
     navAdmin: "Admin",
     hallTitle: "Espace Événementiel Raffiné",
     hallDesc: "Des mariages de luxe aux conférences professionnelles, notre salle s'adapte à vos besoins avec des installations de pointe et un décor élégant.",
@@ -124,7 +127,10 @@ const translations = {
     adminChats: "Messages Staff",
     available: "Disponible",
     booked: "Occupé",
-    night: "nuit"
+    night: "nuit",
+    reserved: "RÉSERVÉ",
+    viewDetails: "Voir Photos",
+    roomImages: "Photos de la chambre (liens séparés par des virgules)"
   }
 };
 
@@ -148,42 +154,21 @@ const App = () => {
 
   // Admin State
   const [adminActiveTab, setAdminActiveTab] = useState('overview');
-  const [rooms, setRooms] = useState([
-    { id: 1, name: 'Grande Salle Aurore', capacity: 1200, type: 'Venue', price: 1500, amenities: ['Catering Premium', 'VIP Sound System'], isAvailable: true, image: '/assets/images/hall.png' },
-    { id: 2, name: 'Villa Tropicale', capacity: 20, type: 'Villa', price: 450, amenities: ['Private Pool', 'Premium Butler'], isAvailable: true, image: '/assets/images/terrace.png' },
-    { id: 3, name: 'Royal Suite', capacity: 4, type: 'Room', price: 250, amenities: ['Jacuzzi', 'Mini Bar'], isAvailable: false, image: '/assets/images/hall.png' }
-  ]);
-  const [amenities, setAmenities] = useState([
-    { id: 1, name: 'Catering Premium', category: 'Food' },
-    { id: 2, name: 'VIP Sound System', category: 'Audio/Visual' },
-    { id: 3, name: 'Private Security', category: 'Services' },
-    { id: 4, name: 'Private Pool', category: 'Facilities' },
-    { id: 5, name: 'Jacuzzi', category: 'Facilities' }
-  ]);
+  const [rooms, setRooms] = useState([]);
+  const [amenities, setAmenities] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [reservations, setReservations] = useState([]);
 
-  const [newRoom, setNewRoom] = useState({ name: '', capacity: '', type: 'Venue', price: '', amenities: [] });
+  const [newRoom, setNewRoom] = useState({ name: '', capacity: '', type: 'Venue', price: '', images: '', amenities: [] });
   const [newAmenity, setNewAmenity] = useState({ name: '', category: 'General' });
 
   // Chat State
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState([
-    { id: 1, text: "Hello! How can I help you today?", sender: 'staff', timestamp: '14:00' },
-    { id: 2, text: "Hi, is the Villa available for June 12th?", sender: 'user', timestamp: '14:05' }
-  ]);
   const [currentMsg, setCurrentMsg] = useState('');
 
-  const [reservations, setReservations] = useState([
-    { id: 1, clientName: 'Sarah Ilunga', date: '2026-04-12', type: 'Wedding', status: 'pending', guests: 300 },
-    { id: 2, clientName: 'Banque EquityBCDC', date: '2026-04-15', type: 'Conference', status: 'confirmed', guests: 100 },
-    { id: 3, clientName: 'Jean Mukendi', date: '2026-04-20', type: 'Birthday', status: 'checked-in', guests: 50 },
-  ]);
-
-  const [employees, setEmployees] = useState([
-    { id: 1, name: 'Jean Pierre', role: 'General Manager', shift: 'Full-time', status: 'Active' },
-    { id: 2, name: 'Merveille Kabunda', role: 'Event Coordinator', shift: 'Morning', status: 'Active' },
-    { id: 3, name: 'Didier Kasongo', role: 'Security Head', shift: 'Night', status: 'Active' },
-  ]);
   const [newEmployee, setNewEmployee] = useState({ name: '', role: 'Staff', shift: 'Morning' });
+  const [selectedRoom, setSelectedRoom] = useState(null); // For Room Detail Modal
 
   const [analyticsData] = useState([
     { month: 'Oct', revenue: 8500, bookings: 12 },
@@ -202,19 +187,27 @@ const App = () => {
     };
     window.addEventListener('scroll', handleScroll);
     
-    // SyncReservations from Firestore
-    const q = query(collection(db, "reservations"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setReservations(data);
-    });
+    // Sync Groups
+    const syncData = (collectionName, setState, orderField = "createdAt") => {
+      const q = query(collection(db, collectionName), orderBy(orderField, "desc"));
+      return onSnapshot(q, (snapshot) => {
+        setState(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+    };
+
+    const unsubReservations = syncData("reservations", setReservations);
+    const unsubRooms = syncData("rooms", setRooms, "name");
+    const unsubAmenities = syncData("amenities", setAmenities, "name");
+    const unsubEmployees = syncData("employees", setEmployees, "name");
+    const unsubMessages = syncData("messages", setChatMessages, "timestamp");
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      unsubscribe();
+      unsubReservations();
+      unsubRooms();
+      unsubAmenities();
+      unsubEmployees();
+      unsubMessages();
     };
   }, []);
 
@@ -254,16 +247,19 @@ const App = () => {
     }
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async (sender = 'user') => {
     if (!currentMsg.trim()) return;
-    const msg = {
-      id: Date.now(),
-      text: currentMsg,
-      sender: 'user',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-    setChatMessages([...chatMessages, msg]);
-    setCurrentMsg('');
+    try {
+      const msg = {
+        text: currentMsg,
+        sender: sender,
+        timestamp: serverTimestamp()
+      };
+      await addDoc(collection(db, "messages"), msg);
+      setCurrentMsg('');
+    } catch (err) {
+      console.error("Chat error:", err);
+    }
   };
 
   const renderHome = () => (
@@ -286,29 +282,32 @@ const App = () => {
           {rooms.filter(r => r.type === 'Room' || r.type === 'Villa').map(room => (
             <div className="card" key={room.id}>
               <div style={{ position: 'relative' }}>
-                <img src={room.image} alt={room.name} />
+                <img src={room.images ? room.images.split(',')[0] : room.image} alt={room.name} />
                 <span className={`availability-badge ${room.isAvailable ? 'available' : 'booked'}`}>
-                  {room.isAvailable ? t.available : t.booked}
+                  {room.isAvailable ? t.available : t.reserved}
                 </span>
               </div>
               <h3>{room.name}</h3>
               <div className="price-tag">${room.price} <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>/ {t.night}</span></div>
               <p style={{ fontSize: '0.9rem', marginBottom: '1rem' }}>{t.roomCapacity}: {room.capacity} Guests</p>
               <div style={{ marginBottom: '1.5rem', minHeight: '60px' }}>
-                {room.amenities.map(a => <span key={a} className="amenity-pill">{a}</span>)}
+                {room.amenities.slice(0, 3).map(a => <span key={a} className="amenity-pill">{a}</span>)}
+                {room.amenities.length > 3 && <span className="amenity-pill">+{room.amenities.length - 3}</span>}
               </div>
-              <input type="date" className="admin-input" style={{ marginBottom: '1rem' }} />
-              <button
-                className="btn-primary"
-                style={{ width: '100%' }}
-                disabled={!room.isAvailable}
-                onClick={() => {
-                  setBookingFormData({ ...bookingFormData, type: room.type.toLowerCase() });
-                  setView('booking');
-                }}
-              >
-                Book This Room
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn-secondary" style={{ flex: 1, padding: '0.6rem' }} onClick={() => setSelectedRoom(room)}>{t.viewDetails}</button>
+                <button
+                  className="btn-primary"
+                  style={{ flex: 1, padding: '0.6rem' }}
+                  disabled={!room.isAvailable}
+                  onClick={() => {
+                    setBookingFormData({ ...bookingFormData, type: room.type.toLowerCase() });
+                    setView('booking');
+                  }}
+                >
+                  {t.bookBtn}
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -321,9 +320,9 @@ const App = () => {
           {rooms.filter(r => r.type === 'Venue' || r.type === 'Garden' || r.type === 'Lounge').map(room => (
             <div className="card" key={room.id}>
               <div style={{ position: 'relative' }}>
-                <img src={room.image} alt={room.name} />
+                <img src={room.images ? room.images.split(',')[0] : room.image} alt={room.name} />
                 <span className={`availability-badge ${room.isAvailable ? 'available' : 'booked'}`}>
-                  {room.isAvailable ? 'OPEN' : 'RESERVED'}
+                  {room.isAvailable ? 'OPEN' : t.reserved}
                 </span>
               </div>
               <h3>{room.name}</h3>
@@ -410,15 +409,17 @@ const App = () => {
     </section>
   );
 
-  const handleAddRoom = (e) => {
+  const handleAddRoom = async (e) => {
     e.preventDefault();
-    setRooms([...rooms, {
-      ...newRoom,
-      id: Date.now(),
-      isAvailable: true,
-      image: '/assets/images/hall.png'
-    }]);
-    setNewRoom({ name: '', capacity: '', type: 'Venue', price: '', amenities: [] });
+    try {
+      await addDoc(collection(db, "rooms"), {
+        ...newRoom,
+        isAvailable: true,
+        image: newRoom.images ? newRoom.images.split(',')[0] : '/assets/images/hall.png',
+        createdAt: serverTimestamp()
+      });
+      setNewRoom({ name: '', capacity: '', type: 'Venue', price: '', images: '', amenities: [] });
+    } catch (err) { console.error(err); }
   };
 
   const toggleAmenityInNewRoom = (amenityName) => {
@@ -430,24 +431,38 @@ const App = () => {
     }
   };
 
-  const toggleRoomAvailability = (id) => {
-    setRooms(rooms.map(r => r.id === id ? { ...r, isAvailable: !r.isAvailable } : r));
+  const toggleRoomAvailability = async (id, currentStatus) => {
+    try {
+      await updateDoc(doc(db, "rooms", id), { isAvailable: !currentStatus });
+    } catch (err) { console.error(err); }
   };
 
-  const handleAddAmenity = (e) => {
+  const handleDeleteRoom = async (id) => {
+    if (window.confirm("Delete this space?")) {
+      await deleteDoc(doc(db, "rooms", id));
+    }
+  };
+
+  const handleAddAmenity = async (e) => {
     e.preventDefault();
-    setAmenities([...amenities, { ...newAmenity, id: Date.now() }]);
-    setNewAmenity({ name: '', category: 'General' });
+    try {
+      await addDoc(collection(db, "amenities"), { ...newAmenity, createdAt: serverTimestamp() });
+      setNewAmenity({ name: '', category: 'General' });
+    } catch (err) { console.error(err); }
   };
 
-  const handleAddEmployee = (e) => {
+  const handleAddEmployee = async (e) => {
     e.preventDefault();
-    setEmployees([...employees, { ...newEmployee, id: Date.now(), status: 'Active' }]);
-    setNewEmployee({ name: '', role: 'Staff', shift: 'Morning' });
+    try {
+      await addDoc(collection(db, "employees"), { ...newEmployee, status: 'Active', createdAt: serverTimestamp() });
+      setNewEmployee({ name: '', role: 'Staff', shift: 'Morning' });
+    } catch (err) { console.error(err); }
   };
 
-  const handleRemoveEmployee = (id) => {
-    setEmployees(employees.filter(emp => emp.id !== id));
+  const handleRemoveEmployee = async (id) => {
+    if (window.confirm("Remove employee?")) {
+      await deleteDoc(doc(db, "employees", id));
+    }
   };
 
   const handleUpdateStatus = async (id, status) => {
@@ -520,19 +535,21 @@ const App = () => {
           <div className="fade-in-up">
             <div className="card-grid">
               <div className="card glass">
-                <h4 style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '0.8rem' }}>{t.occupancy}</h4>
-                <div style={{ fontSize: '2.5rem', fontWeight: '700', color: 'var(--accent-gold)' }}>85%</div>
-                <p style={{ fontSize: '0.9rem' }}>1,200 Capacity Total</p>
+                <h4 style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '0.8rem' }}>{t.occupancy} (Confirmed)</h4>
+                <div style={{ fontSize: '2.5rem', fontWeight: '700', color: 'var(--accent-gold)' }}>
+                  {Math.round((reservations.filter(r => r.status === 'confirmed' || r.status === 'checked-in').length / (rooms.length || 1)) * 100)}%
+                </div>
+                <p style={{ fontSize: '0.9rem' }}>{rooms.length} Active Spaces</p>
               </div>
               <div className="card glass">
-                <h4 style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '0.8rem' }}>Events Today</h4>
-                <div style={{ fontSize: '2.5rem', fontWeight: '700', color: 'var(--accent-gold)' }}>3</div>
-                <p style={{ fontSize: '0.9rem' }}>2 Weddings, 1 Seminar</p>
+                <h4 style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '0.8rem' }}>Total Bookings</h4>
+                <div style={{ fontSize: '2.5rem', fontWeight: '700', color: 'var(--accent-gold)' }}>{reservations.length}</div>
+                <p style={{ fontSize: '0.9rem' }}>{reservations.filter(r => r.status === 'pending').length} Pending Review</p>
               </div>
               <div className="card glass">
-                <h4 style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '0.8rem' }}>Pending Payments</h4>
-                <div style={{ fontSize: '2.5rem', fontWeight: '700', color: 'var(--accent-gold)' }}>5,200$</div>
-                <p style={{ fontSize: '0.9rem' }}>Cash collections due this week</p>
+                <h4 style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '0.8rem' }}>New Messages</h4>
+                <div style={{ fontSize: '2.5rem', fontWeight: '700', color: 'var(--accent-gold)' }}>{chatMessages.filter(m => m.sender === 'user').length}</div>
+                <p style={{ fontSize: '0.9rem' }}>Awaiting Staff Reply</p>
               </div>
             </div>
           </div>
@@ -599,9 +616,14 @@ const App = () => {
                   <select className="admin-input" value={newRoom.type} onChange={(e) => setNewRoom({ ...newRoom, type: e.target.value })}>
                     <option value="Venue">Venue</option>
                     <option value="Villa">Villa</option>
+                    <option value="Room">Room</option>
                     <option value="Garden">Garden</option>
                     <option value="Lounge">Lounge</option>
                   </select>
+                </div>
+                <div className="admin-form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label>{t.roomImages}</label>
+                  <input className="admin-input" value={newRoom.images} onChange={(e) => setNewRoom({ ...newRoom, images: e.target.value })} placeholder="https://example.com/img1.jpg, https://example.com/img2.jpg" />
                 </div>
                 <div className="admin-form-group" style={{ gridColumn: '1 / -1' }}>
                   <label>{t.selectAmenities}</label>
@@ -642,12 +664,12 @@ const App = () => {
                       <td>{room.name}</td>
                       <td>${room.price}</td>
                       <td>
-                        <button onClick={() => toggleRoomAvailability(room.id)} className={`status-badge ${room.isAvailable ? 'status-confirmed' : 'status-pending'}`} style={{ cursor: 'pointer' }}>
+                        <button onClick={() => toggleRoomAvailability(room.id, room.isAvailable)} className={`status-badge ${room.isAvailable ? 'status-confirmed' : 'status-pending'}`} style={{ cursor: 'pointer' }}>
                           {room.isAvailable ? t.available : t.booked}
                         </button>
                       </td>
                       <td>
-                        <button style={{ color: '#ff4d4d', fontSize: '0.8rem' }} onClick={() => setRooms(rooms.filter(r => r.id !== room.id))}>Delete</button>
+                        <button style={{ color: '#ff4d4d', fontSize: '0.8rem' }} onClick={() => handleDeleteRoom(room.id)}>Delete</button>
                       </td>
                     </tr>
                   ))}
@@ -688,6 +710,7 @@ const App = () => {
                   <tr>
                     <th>{t.amenityName}</th>
                     <th>{t.amenityCategory}</th>
+                    <th>{t.actions}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -695,6 +718,11 @@ const App = () => {
                     <tr key={amenity.id}>
                       <td>{amenity.name}</td>
                       <td>{amenity.category}</td>
+                      <td>
+                        <button style={{ color: '#ff4d4d', fontSize: '0.8rem' }} onClick={async () => {
+                          if (window.confirm("Delete?")) await deleteDoc(doc(db, "amenities", amenity.id));
+                        }}>Delete</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -831,10 +859,12 @@ const App = () => {
           <div className="fade-in-up glass" style={{ padding: '2rem' }}>
             <h3>{t.adminChats}</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '1.5rem', marginTop: '1.5rem', height: '500px' }}>
-              <div style={{ borderRight: '1px solid #ffffff10' }}>
-                <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', cursor: 'pointer' }}>
-                  <strong>Active Guest #128</strong>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Hi, is the Villa available...</p>
+              <div style={{ borderRight: '1px solid #ffffff10', overflowY: 'auto' }}>
+                <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                  <strong>{t.chatWithUs}</strong>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    {chatMessages.length > 0 ? chatMessages[chatMessages.length - 1].text.substring(0, 30) + '...' : 'No messages yet'}
+                  </p>
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -842,23 +872,78 @@ const App = () => {
                   {chatMessages.map(m => (
                     <div key={m.id} className={`msg ${m.sender === 'staff' ? 'msg-user' : 'msg-staff'}`} style={{ marginBottom: '1rem', alignSelf: m.sender === 'staff' ? 'flex-end' : 'flex-start' }}>
                       {m.text}
-                      <div style={{ fontSize: '0.6rem', marginTop: '0.3rem', opacity: 0.7 }}>{m.timestamp}</div>
+                      <div style={{ fontSize: '0.6rem', marginTop: '0.3rem', opacity: 0.7 }}>{m.timestamp?.toDate ? m.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now'}</div>
                     </div>
                   ))}
                 </div>
                 <div style={{ padding: '1rem', display: 'flex', gap: '0.5rem' }}>
-                  <input className="admin-input" placeholder="Type reply..." value={currentMsg} onChange={(e) => setCurrentMsg(e.target.value)} />
-                  <button className="btn-primary" onClick={() => {
-                    const m = { id: Date.now(), text: currentMsg, sender: 'staff', timestamp: 'Now' };
-                    setChatMessages([...chatMessages, m]);
-                    setCurrentMsg('');
-                  }}>Send</button>
+                  <input className="admin-input" placeholder="Type reply..." value={currentMsg} onChange={(e) => setCurrentMsg(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage('staff')} />
+                  <button className="btn-primary" onClick={() => handleSendMessage('staff')}>Send</button>
                 </div>
               </div>
             </div>
           </div>
         )}
       </section>
+    );
+  };
+
+  const renderRoomDetail = () => {
+    if (!selectedRoom) return null;
+    const roomImages = selectedRoom.images ? selectedRoom.images.split(',') : [selectedRoom.image || '/assets/images/hall.png'];
+    
+    return (
+      <div className="modal-overlay" onClick={() => setSelectedRoom(null)}>
+        <div className="modal-content glass fade-in-up" onClick={e => e.stopPropagation()}>
+          <button className="modal-close" onClick={() => setSelectedRoom(null)}>✕</button>
+          <div className="modal-body">
+            <div className="modal-gallery">
+              <img src={roomImages[0]} alt={selectedRoom.name} className="main-modal-img" />
+              <div className="gallery-thumbs">
+                {roomImages.map((img, i) => (
+                  <img 
+                    key={i} 
+                    src={img} 
+                    alt={`${selectedRoom.name}-${i}`} 
+                    onClick={(e) => {
+                      const main = e.currentTarget.closest('.modal-gallery').querySelector('.main-modal-img');
+                      if (main) main.src = img;
+                    }} 
+                    style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer', border: '1px solid #ffffff20' }} 
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="modal-info">
+              <h2>{selectedRoom.name}</h2>
+              <div className="price-tag" style={{ fontSize: '1.8rem' }}>${selectedRoom.price} <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>/ {t.night}</span></div>
+              <p style={{ margin: '1rem 0', color: 'var(--text-secondary)' }}>{t.roomCapacity}: {selectedRoom.capacity} Guests</p>
+              
+              <div className="modal-amenities">
+                <h4 style={{ marginBottom: '1rem', color: 'white' }}>{t.adminAmenities}</h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  {selectedRoom.amenities.map(a => <span key={a} className="amenity-pill" style={{ fontSize: '0.9rem', padding: '0.4rem 0.8rem' }}>{a}</span>)}
+                </div>
+              </div>
+
+              <div style={{ marginTop: '2rem' }}>
+                <button 
+                  className="btn-primary" 
+                  style={{ width: '100%', padding: '1.2rem' }}
+                  disabled={!selectedRoom.isAvailable}
+                  onClick={() => {
+                    setBookingFormData({ ...bookingFormData, type: selectedRoom.type.toLowerCase() });
+                    setView('booking');
+                    setSelectedRoom(null);
+                  }}
+                >
+                  {selectedRoom.isAvailable ? t.navBooking : t.reserved}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   };
 
@@ -886,6 +971,8 @@ const App = () => {
         {view === 'admin' && renderAdmin()}
       </main>
 
+      {renderRoomDetail()}
+
       <footer>
         <div className="app-container">
           <p>{t.footerText}</p>
@@ -904,7 +991,7 @@ const App = () => {
               {chatMessages.map(m => (
                 <div key={m.id} className={`msg msg-${m.sender}`}>
                   {m.text}
-                  <div style={{ fontSize: '0.6rem', marginTop: '0.2rem', opacity: 0.7 }}>{m.timestamp}</div>
+                  <div style={{ fontSize: '0.6rem', marginTop: '0.2rem', opacity: 0.7 }}>{m.timestamp?.toDate ? m.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now'}</div>
                 </div>
               ))}
             </div>
