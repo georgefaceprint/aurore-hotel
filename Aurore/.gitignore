@@ -25,3 +25,11 @@ dist-ssr
 .env
 .vercel
 .env*.local
+
+# Sibling projects accidentally included — exclude from Aurore repo
+Familia/
+Chatty stan/
+Fanya Pesa/
+Hazina/
+Looking Gorg/
+New_Cabby/
