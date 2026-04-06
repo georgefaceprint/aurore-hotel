@@ -337,7 +337,7 @@ const App = () => {
             check_in: bookingFormData.checkIn,
             check_out: bookingFormData.checkOut,
             phone: `${bookingFormData.country} ${bookingFormData.phone}`,
-            total_price: `$${total}`,
+            total_price: `$${(room?.price || 0) * Math.max(1, (new Date(bookingFormData.checkOut) - new Date(bookingFormData.checkIn)) / 86400000 || 1)}`,
             reply_to: 'contact@auroreecce.cd',
           },
           import.meta.env.VITE_EMAILJS_PUBLIC_KEY || ''
@@ -887,44 +887,71 @@ const App = () => {
     }
   };
 
-  const renderAdmin = () => {
-    const revenue = reservations.reduce((acc, r) => acc + (rooms.find(rm => rm.id === r.roomId)?.price || 0), 0);
-    const confirmedCount = reservations.filter(r => r.status === 'confirmed' || r.status === 'checked-in').length;
+  const sendTestEmail = async () => {
+    try {
+      await emailjs.send(
+        import.meta.env.VITE_EMAILJS_SERVICE_ID,
+        import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+        {
+          to_name: 'Faceprint Admin',
+          to_email: 'faceprint@icloud.com',
+          room_name: 'Suite Royale N°101',
+          check_in: '2026-04-10',
+          check_out: '2026-04-12',
+          phone: '+243 81 000 0000',
+          total_price: '$240',
+          reply_to: 'contact@auroreecce.cd',
+        },
+        import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+      );
+      alert('✅ Test email sent to faceprint@icloud.com!');
+    } catch (err) {
+      alert(`❌ EmailJS not configured yet. Set VITE_EMAILJS_SERVICE_ID, VITE_EMAILJS_TEMPLATE_ID and VITE_EMAILJS_PUBLIC_KEY in your .env file.\n\nGo to emailjs.com → Free account → Create service & template → Copy keys.`);
+      console.error('EmailJS error:', err);
+    }
+  };
 
-    const handleSeedData = async () => {
-      if (rooms.length === 0) {
-        alert("Please add at least one space before seeding bookings.");
-        return;
-      }
-      if (!window.confirm("Seed 20 mock reservations for the last 5 days?")) return;
-      
-      const firstNames = ["Jean", "Marie", "Marc", "Alice", "David", "Sophie", "Paul", "Emma"];
-      const lastNames = ["Mukendi", "Kabila", "Lumumba", "Tshisekedi", "Ngoy", "Ilunga"];
-      const statuses = ["pending", "confirmed", "checked-in"];
-      
-      for (let i = 0; i < 20; i++) {
-        const room = rooms[Math.floor(Math.random() * rooms.length)];
-        const date = new Date();
-        date.setDate(date.getDate() - Math.floor(Math.random() * 5));
-        
-        await addDoc(collection(db, "reservations"), {
+  const handleSeedData = async () => {
+    if (rooms.length === 0) {
+      alert('Please add at least one space before seeding bookings.');
+      return;
+    }
+    if (!window.confirm('Seed 20 mock reservations for the last 5 days?')) return;
+
+    const firstNames = ['Jean', 'Marie', 'Marc', 'Alice', 'David', 'Sophie', 'Paul', 'Emma', 'Luc', 'Fatima'];
+    const lastNames = ['Mukendi', 'Kabila', 'Lumumba', 'Tshisekedi', 'Ngoy', 'Ilunga', 'Kasongo'];
+    const statuses = ['pending', 'confirmed', 'checked-in'];
+    const promises = [];
+
+    for (let i = 0; i < 20; i++) {
+      const room = rooms[Math.floor(Math.random() * rooms.length)];
+      const date = new Date();
+      date.setDate(date.getDate() - Math.floor(Math.random() * 5));
+      promises.push(
+        addDoc(collection(db, 'reservations'), {
           firstName: firstNames[Math.floor(Math.random() * firstNames.length)],
           lastName: lastNames[Math.floor(Math.random() * lastNames.length)],
-          email: "guest@example.com",
-          phone: "+243 81 234 5678",
-          country: "DR Congo",
+          email: 'guest@example.com',
+          phone: '81 234 5678',
+          country: '+243',
           roomId: room.id,
           roomName: room.name,
           checkIn: date.toISOString().split('T')[0],
           checkOut: new Date(date.getTime() + 86400000 * 2).toISOString().split('T')[0],
-          adults: "2",
-          children: "1",
+          adults: '2',
+          children: '1',
           status: statuses[Math.floor(Math.random() * statuses.length)],
           createdAt: serverTimestamp()
-        });
-      }
-      alert("20 Reservations Seeded!");
-    };
+        })
+      );
+    }
+    await Promise.all(promises);
+    alert('✅ 20 Demo Reservations Seeded!');
+  };
+
+  const renderAdmin = () => {
+    const revenue = reservations.reduce((acc, r) => acc + (rooms.find(rm => rm.id === r.roomId)?.price || 0), 0);
+    const confirmedCount = reservations.filter(r => r.status === 'confirmed' || r.status === 'checked-in').length;
 
     if (!isAdminLoggedIn) {
       return (
@@ -970,7 +997,8 @@ const App = () => {
             <span className="subtitle-french">L'Excellence Maison Aurore</span>
           </div>
           <div style={{ display: 'flex', gap: '1rem' }}>
-            <button className="btn-secondary" style={{ borderColor: 'var(--accent-gold)', color: 'var(--accent-gold)' }} onClick={handleSeedData}>Seed Demo Data</button>
+            <button className="btn-secondary" style={{ borderColor: 'var(--accent-gold)', color: 'var(--accent-gold)' }} onClick={handleSeedData}>📊 Seed Demo Data</button>
+            <button className="btn-secondary" style={{ borderColor: '#10b981', color: '#10b981' }} onClick={sendTestEmail}>📧 Test Email</button>
             <button className="btn-secondary" style={{ borderColor: '#ff4d4d', color: '#ff4d4d' }} onClick={handleAdminLogout}>Logout</button>
             <button className="btn-secondary" onClick={() => setView('home')}>{t.backHome}</button>
           </div>
