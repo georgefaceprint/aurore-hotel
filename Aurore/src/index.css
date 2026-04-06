@@ -1,13 +1,17 @@
 :root {
-  --bg-color: #0a192f;
-  --bg-card: #112240;
-  --text-primary: #e6f1ff;
-  --text-secondary: #8892b0;
-  --accent-gold: #d4af37;
-  --accent-gold-hover: #b8860b;
-  --accent-blue: #64ffda; /* Teal accent for contrast */
+  --bg-color: #ffffff;
+  --bg-card: #f8fafc;
+  --text-primary: #0a192f;
+  --text-secondary: #475569;
+  --accent-gold: #b8860b;
+  --accent-gold-hover: #a67c00;
+  --accent-blue: #2563eb;
   --font-serif: 'Playfair Display', serif;
   --font-sans: 'Outfit', 'Inter', sans-serif;
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(184, 134, 11, 0.1);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
 * {
@@ -120,8 +124,8 @@ nav {
 }
 
 nav.scrolled {
-  background: rgba(10, 25, 47, 0.95);
-  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 5px 20px rgba(0,0,0,0.1);
 }
 
 .logo {
@@ -148,13 +152,13 @@ nav.scrolled {
 
 /* Hero Section */
 .hero {
-  height: 100vh;
+  height: 90vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   text-align: center;
-  background: linear-gradient(rgba(10, 25, 47, 0.7), rgba(10, 25, 47, 0.7)), url('/assets/images/hall.png');
+  background-image: linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6)), url('https://images.unsplash.com/photo-1542314831-068cd1dbfeeb');
   background-size: cover;
   background-position: center;
   margin-top: 0;
@@ -170,15 +174,16 @@ nav.scrolled {
 
 .booking-bar-hero {
   display: flex;
-  background: rgba(10, 25, 47, 0.8) !important;
+  background: #ffffff !important;
   border: 1px solid var(--accent-gold);
   border-radius: 8px;
-  padding: 1.5rem;
+  padding: 1rem;
   gap: 1.5rem;
   margin-top: 2rem;
   width: 100%;
-  max-width: 1000px;
+  max-width: 1100px;
   align-items: flex-end;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.12);
 }
 
 .bar-item {
@@ -190,20 +195,20 @@ nav.scrolled {
 }
 
 .bar-item label {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
-  color: var(--accent-gold);
-  font-weight: 600;
-  letter-spacing: 1px;
+  color: var(--text-secondary);
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
 
 .bar-item input, .bar-item select {
   width: 100%;
   padding: 0.8rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #fff;
+  border: 1px solid #e2e8f0;
   border-radius: 4px;
-  color: white;
+  color: var(--text-primary);
   font-family: var(--font-sans);
 }
 
@@ -273,7 +278,7 @@ nav.scrolled {
 footer {
   padding: 3rem 0;
   text-align: center;
-  border-top: 1px solid rgba(255,255,255,0.1);
+  border-top: 1px solid rgba(0,0,0,0.1);
   color: var(--text-secondary);
   font-size: 0.9rem;
 }
@@ -289,7 +294,7 @@ footer {
 .admin-tabs {
   display: flex;
   gap: 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   margin-bottom: 2rem;
   padding-bottom: 0.5rem;
   overflow-x: auto;
@@ -322,7 +327,7 @@ footer {
 .admin-table th, .admin-table td {
   padding: 1.2rem;
   text-align: left;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .admin-table th {
@@ -341,7 +346,7 @@ footer {
   text-transform: uppercase;
 }
 
-.status-pending { background: rgba(255, 193, 7, 0.2); color: #ffc107; }
+.status-pending { background: rgba(255, 193, 7, 0.2); color: #b8860b; }
 .status-confirmed { background: rgba(40, 167, 69, 0.2); color: #28a745; }
 .status-checked-in { background: rgba(0, 123, 255, 0.2); color: #007bff; }
 
@@ -352,10 +357,10 @@ footer {
 .admin-input {
   width: 100%;
   padding: 0.8rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #fff;
+  border: 1px solid #e2e8f0;
   border-radius: 4px;
-  color: white;
+  color: var(--text-primary);
   margin-top: 0.4rem;
 }
 
@@ -399,7 +404,10 @@ footer {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
 }
 
 .chat-header {
@@ -440,7 +448,7 @@ footer {
   background: var(--bg-card);
   color: var(--text-primary);
   border-bottom-left-radius: 2px;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid #e2e8f0;
 }
 
 .chat-footer {
@@ -461,8 +469,8 @@ footer {
 .amenity-pill {
   display: inline-block;
   padding: 0.2rem 0.6rem;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
   border-radius: 20px;
   font-size: 0.7rem;
   margin-right: 0.4rem;
@@ -486,8 +494,8 @@ footer {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0,0,0,0.85);
-  backdrop-filter: blur(8px);
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
   z-index: 3000;
   display: flex;
   align-items: center;
@@ -510,7 +518,7 @@ footer {
   position: absolute;
   top: 1.5rem;
   right: 1.5rem;
-  color: white;
+  color: var(--text-primary);
   font-size: 1.5rem;
   z-index: 10;
 }
@@ -538,7 +546,7 @@ footer {
   aspect-ratio: 16/10;
   object-fit: cover;
   border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid #e2e8f0;
 }
 
 .gallery-thumbs {
@@ -554,7 +562,7 @@ footer {
 }
 
 .amenity-pill.active {
-  background: rgba(212, 175, 55, 0.2);
+  background: rgba(212, 175, 55, 0.1);
   border-color: var(--accent-gold);
   color: var(--accent-gold);
 }
@@ -573,11 +581,15 @@ footer {
   overflow: hidden;
   transition: transform 0.3s ease;
   min-height: 200px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
 }
 
 .listing-item:hover {
-  transform: translateX(5px);
+  transform: translateY(-5px);
   border-color: var(--accent-gold);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
 }
 
 .listing-img-container {
@@ -599,10 +611,14 @@ footer {
   flex-direction: column;
 }
 
+.listing-details h3 {
+  color: var(--text-primary);
+}
+
 .listing-cta {
   padding: 1.5rem;
-  background: rgba(255, 255, 255, 0.02);
-  border-left: 1px solid rgba(255, 255, 255, 0.05);
+  background: #f8fafc;
+  border-left: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;

@@ -177,7 +177,8 @@ const App = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [reservations, setReservations] = useState([]);
 
-  const [newRoom, setNewRoom] = useState({ name: '', capacity: '', type: 'Venue', price: '', images: '', amenities: [] });
+  const [newRoom, setNewRoom] = useState({ name: '', price: '', capacity: '', type: 'Room', amenities: [], images: '' });
+  const [editingRoomId, setEditingRoomId] = useState(null);
   const [newAmenity, setNewAmenity] = useState({ name: '', category: 'General' });
 
   // Chat State
@@ -495,17 +496,42 @@ const App = () => {
     </section>
   );
 
-  const handleAddRoom = async (e) => {
+  const handleRoomSubmit = async (e) => {
     e.preventDefault();
     try {
-      await addDoc(collection(db, "rooms"), {
-        ...newRoom,
+      const roomData = { 
+        ...newRoom, 
+        price: Number(newRoom.price), 
+        capacity: Number(newRoom.capacity), 
         isAvailable: true,
-        image: newRoom.images ? newRoom.images.split(',')[0] : '/assets/images/hall.png',
-        createdAt: serverTimestamp()
-      });
-      setNewRoom({ name: '', capacity: '', type: 'Venue', price: '', images: '', amenities: [] });
-    } catch (err) { console.error(err); }
+        image: newRoom.images.split(',')[0].trim(),
+        createdAt: serverTimestamp() 
+      };
+
+      if (editingRoomId) {
+        await updateDoc(doc(db, "rooms", editingRoomId), roomData);
+        setEditingRoomId(null);
+      } else {
+        await addDoc(collection(db, "rooms"), roomData);
+      }
+
+      setNewRoom({ name: '', price: '', capacity: '', type: 'Room', amenities: [], images: '' });
+    } catch (err) {
+      console.error("Room add/update error:", err);
+    }
+  };
+
+  const handleEditRoom = (room) => {
+    setNewRoom({
+      name: room.name,
+      price: room.price.toString(),
+      capacity: room.capacity.toString(),
+      type: room.type,
+      amenities: room.amenities || [],
+      images: room.images || ''
+    });
+    setEditingRoomId(room.id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const toggleAmenityInNewRoom = (amenityName) => {
@@ -727,8 +753,14 @@ const App = () => {
                     ))}
                   </div>
                 </div>
-                <div className="admin-form-group" style={{ display: 'flex', alignItems: 'flex-end', gridColumn: '1 / -1' }}>
-                  <button type="submit" className="btn-primary" style={{ width: '100%' }}>{t.addRoom}</button>
+                <div className="admin-form-group" style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', gridColumn: '1 / -1' }}>
+                  <button type="submit" className="btn-primary" style={{ flex: 2 }}>{editingRoomId ? "Update Space" : t.addRoom}</button>
+                  {editingRoomId && (
+                    <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => {
+                      setEditingRoomId(null);
+                      setNewRoom({ name: '', price: '', capacity: '', type: 'Room', amenities: [], images: '' });
+                    }}>Cancel</button>
+                  )}
                 </div>
               </form>
             </div>
@@ -754,7 +786,8 @@ const App = () => {
                           {room.isAvailable ? t.available : t.booked}
                         </button>
                       </td>
-                      <td>
+                      <td style={{ display: 'flex', gap: '1rem' }}>
+                        <button style={{ color: 'var(--accent-gold)', fontSize: '0.8rem', fontWeight: 600 }} onClick={() => handleEditRoom(room)}>Edit</button>
                         <button style={{ color: '#ff4d4d', fontSize: '0.8rem' }} onClick={() => handleDeleteRoom(room.id)}>Delete</button>
                       </td>
                     </tr>
