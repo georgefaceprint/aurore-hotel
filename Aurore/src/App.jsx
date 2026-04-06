@@ -282,6 +282,30 @@ const App = () => {
     }
   };
 
+  const handleSendMessage = async (e, isAdmin = false, guestId = null) => {
+    if (e) e.preventDefault();
+    if (!currentMsg.trim()) return;
+
+    if (!user && !isAdmin) {
+      alert("Please log in to chat with us!");
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, "messages"), {
+        text: currentMsg,
+        timestamp: serverTimestamp(),
+        senderId: isAdmin ? "admin" : user.uid,
+        userName: isAdmin ? "Aurore Platform" : (user.displayName || user.email),
+        targetId: isAdmin ? guestId : "admin",
+        isGuest: !isAdmin
+      });
+      setCurrentMsg('');
+    } catch (err) {
+      console.error("Chat error:", err);
+    }
+  };
+
   const handleBookingSubmit = async (e) => {
     if (e) e.preventDefault();
     if (bookingStep === 'details') {
@@ -382,21 +406,6 @@ const App = () => {
     setIsAdminLoggedIn(false);
   };
 
-  const handleSendMessage = async (sender = 'user') => {
-    if (!currentMsg.trim()) return;
-    try {
-      const msg = {
-        text: currentMsg,
-        sender: sender,
-        timestamp: serverTimestamp()
-      };
-      await addDoc(collection(db, "messages"), msg);
-      setCurrentMsg('');
-    } catch (err) {
-      console.error("Chat error:", err);
-    }
-  };
-
   const renderHome = () => (
     <>
       <section className="hero" style={{ 
@@ -467,7 +476,7 @@ const App = () => {
                 </div>
                 <p style={{ fontSize: '0.8rem', color: 'var(--accent-blue)', marginBottom: '0.5rem' }}>✨ Premium Choice</p>
                 <div className="listing-amenities-short">
-                  {room.amenities.slice(0, 5).map(a => <span key={a} className="amenity-inline"> • {a}</span>)}
+                  {room.amenities?.slice(0, 5).map(a => <span key={a} className="amenity-inline"> • {a}</span>)}
                 </div>
                 <p style={{ fontSize: '0.9rem', marginTop: '1rem', color: 'var(--text-secondary)' }}>{t.roomCapacity}: {room.capacity} Guests</p>
               </div>
@@ -516,7 +525,7 @@ const App = () => {
               <div className="price-tag">Starting from ${room.price}</div>
               <p style={{ fontSize: '0.9rem', marginBottom: '1rem' }}>Cap. {room.capacity} Seats</p>
               <div style={{ marginBottom: '1.5rem', minHeight: '60px' }}>
-                {room.amenities.map(a => <span key={a} className="amenity-pill">{a}</span>)}
+                {room.amenities?.map(a => <span key={a} className="amenity-pill">{a}</span>)}
               </div>
               <button
                 className="btn-secondary"
@@ -1134,8 +1143,8 @@ const App = () => {
                 <tbody>
                   {rooms.map(r => (
                     <tr key={r.id}>
-                      <td>{r.name} {r.number}</td>
-                      <td>${r.price}</td>
+                      <td>{r?.name} {r?.number}</td>
+                      <td>${r?.price}</td>
                       <td><button onClick={() => handleEditRoom(r)}>Edit</button></td>
                     </tr>
                   ))}
@@ -1155,9 +1164,49 @@ const App = () => {
         )}
 
         {adminActiveTab === 'chats' && (
-          <div className="glass fade-in-up" style={{ padding: '2rem' }}>
-            <h3>{t.adminChats}</h3>
-            <p>Chat system active. Responses appear in guest portal.</p>
+          <div className="glass fade-in-up" style={{ padding: '2rem', minHeight: '600px', display: 'flex', gap: '2rem' }}>
+            <div style={{ flex: 1, borderRight: '1px solid var(--glass-border)', paddingRight: '1rem' }}>
+              <h3 style={{ marginBottom: '1.5rem' }}>Active Guests</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {Array.from(new Set(chatMessages.filter(m => m.isGuest).map(m => m.senderId))).map(gid => {
+                  const guestMsg = chatMessages.find(m => m.senderId === gid);
+                  return (
+                    <div 
+                      key={gid} 
+                      onClick={() => setEditingRoomId(gid)} // Reusing editingRoomId as active chat pointer
+                      style={{ padding: '1rem', borderRadius: '8px', cursor: 'pointer', background: editingRoomId === gid ? 'rgba(241,180,60,0.1)' : 'transparent', border: editingRoomId === gid ? '1px solid var(--accent-gold)' : '1px solid transparent' }}
+                    >
+                      <div style={{ fontWeight: 600 }}>{guestMsg?.userName}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{guestMsg?.text}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ flex: 2.5, display: 'flex', flexDirection: 'column' }}>
+              {editingRoomId ? (
+                <>
+                  <h3 style={{ marginBottom: '1.5rem' }}>Chat with Guest</h3>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', background: '#f8fafc', borderRadius: '12px', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {chatMessages
+                      .filter(m => m.senderId === editingRoomId || m.targetId === editingRoomId)
+                      .slice().reverse()
+                      .map((m, idx) => (
+                        <div key={idx} style={{ alignSelf: m.senderId === 'admin' ? 'flex-end' : 'flex-start', background: m.senderId === 'admin' ? 'var(--accent-blue)' : '#fff', color: m.senderId === 'admin' ? '#fff' : '#000', padding: '0.6rem 1rem', borderRadius: '12px', maxWidth: '80%', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                          <div style={{ fontSize: '0.7rem', opacity: 0.8, marginBottom: '2px' }}>{m.userName}</div>
+                          {m.text}
+                        </div>
+                      ))}
+                  </div>
+                  <form onSubmit={(e) => handleSendMessage(e, true, editingRoomId)} style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input className="admin-input" style={{ borderRadius: '24px' }} placeholder="Type your response..." value={currentMsg} onChange={(e) => setCurrentMsg(e.target.value)} />
+                    <button type="submit" className="btn-primary" style={{ borderRadius: '24px', padding: '0.5rem 1.5rem' }}>Send</button>
+                  </form>
+                </>
+              ) : (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>Select a guest to view their thread</div>
+              )}
+            </div>
           </div>
         )}
       </section>
@@ -1380,18 +1429,21 @@ const App = () => {
               <button onClick={() => setChatOpen(false)} style={{ color: 'white' }}>✕</button>
             </div>
             <div className="chat-body">
-              {chatMessages.map(m => (
-                <div key={m.id} className={`msg msg-${m.sender}`}>
+              {chatMessages
+                .filter(m => m.senderId === user?.uid || m.targetId === user?.uid)
+                .slice().reverse()
+                .map(m => (
+                <div key={m.id} className={`msg msg-${m.senderId === 'admin' ? 'admin' : 'guest'}`}>
                   {m.text}
                   <div style={{ fontSize: '0.6rem', marginTop: '0.2rem', opacity: 0.7 }}>{m.timestamp?.toDate ? m.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now'}</div>
                 </div>
               ))}
             </div>
             <div className="chat-footer">
-              <input
-                className="admin-input"
-                style={{ marginTop: 0 }}
-                placeholder={t.typeMessage}
+              <input 
+                className="admin-input" 
+                style={{ marginTop: 0 }} 
+                placeholder={t.typeMessage || "Type a message..."} 
                 value={currentMsg}
                 onChange={(e) => setCurrentMsg(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
@@ -1400,10 +1452,12 @@ const App = () => {
             </div>
           </div>
         )}
-        <button className="chat-btn" onClick={() => setChatOpen(!chatOpen)}>
+        <button className="chat-btn" key="chat-toggle" onClick={() => setChatOpen(!chatOpen)}>
           {chatOpen ? '✕' : '💬'}
         </button>
       </div>
+
+      {renderHome()}
     </div>
   );
 };
