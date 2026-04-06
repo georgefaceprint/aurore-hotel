@@ -319,7 +319,7 @@ const App = () => {
               </select>
             </div>
             <button className="btn-primary" style={{ padding: '1rem 2rem' }} onClick={() => {
-              document.getElementById('accommodation')?.scrollIntoView({ behavior: 'smooth' });
+              setView('booking');
             }}>{t.searchAvail}</button>
           </div>
         </div>
@@ -450,7 +450,8 @@ const App = () => {
               type="text"
               required
               placeholder="Ex: Jean Mukendi"
-              style={{ width: '100%', padding: '0.8rem', background: '#ffffff10', border: '1px solid #ffffff20', borderRadius: '4px', color: 'white' }}
+              className="admin-input"
+              style={{ width: '100%', marginTop: 0 }}
               value={bookingFormData.name}
               onChange={(e) => setBookingFormData({ ...bookingFormData, name: e.target.value })}
             />
@@ -746,7 +747,7 @@ const App = () => {
                         type="button"
                         onClick={() => toggleAmenityInNewRoom(a.name)}
                         className={`amenity-pill ${newRoom.amenities.includes(a.name) ? 'active' : ''}`}
-                        style={{ border: newRoom.amenities.includes(a.name) ? '1px solid var(--accent-gold)' : '1px solid #ffffff20', color: newRoom.amenities.includes(a.name) ? 'var(--accent-gold)' : 'white' }}
+                        style={{ border: newRoom.amenities.includes(a.name) ? '1px solid var(--accent-gold)' : '1px solid var(--glass-border)', color: newRoom.amenities.includes(a.name) ? 'var(--accent-gold)' : 'var(--text-primary)' }}
                       >
                         {a.name}
                       </button>
@@ -1009,56 +1010,58 @@ const App = () => {
 
   const renderRoomDetail = () => {
     if (!selectedRoom) return null;
-    const roomImages = selectedRoom.images ? selectedRoom.images.split(',') : [selectedRoom.image || '/assets/images/hall.png'];
+    const images = selectedRoom.images ? selectedRoom.images.split(',') : [selectedRoom.image];
     
     return (
-      <div className="modal-overlay" onClick={() => setSelectedRoom(null)}>
-        <div className="modal-content glass fade-in-up" onClick={e => e.stopPropagation()}>
-          <button className="modal-close" onClick={() => setSelectedRoom(null)}>✕</button>
-          <div className="modal-body">
-            <div className="modal-gallery">
-              <img src={roomImages[0]} alt={selectedRoom.name} className="main-modal-img" />
-              <div className="gallery-thumbs">
-                {roomImages.map((img, i) => (
+      <div className="modal-overlay active" onClick={() => setSelectedRoom(null)}>
+        <div className="modal glass fade-in-up" onClick={e => e.stopPropagation()} style={{ background: '#fff', maxWidth: '900px', width: '95%' }}>
+          <button className="modal-close" onClick={() => setSelectedRoom(null)} style={{ color: 'var(--text-primary)' }}>&times;</button>
+          <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth > 768 ? '1fr 1fr' : '1fr', gap: '2rem', padding: '2rem' }}>
+            <div className="gallery-section">
+              <img 
+                src={`${images[activeImg]}?auto=format&fit=crop&w=800&q=80`} 
+                alt={selectedRoom.name} 
+                style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', borderRadius: '8px' }}
+              />
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+                {images.map((img, i) => (
                   <img 
-                    key={i} 
-                    src={img} 
-                    alt={`${selectedRoom.name}-${i}`} 
-                    onClick={(e) => {
-                      const main = e.currentTarget.closest('.modal-gallery').querySelector('.main-modal-img');
-                      if (main) main.src = img;
-                    }} 
-                    style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer', border: '1px solid #ffffff20' }} 
+                    key={i}
+                    src={`${img}?auto=format&fit=crop&w=150&q=60`} 
+                    alt={`Thumb ${i}`}
+                    className={activeImg === i ? 'active' : ''}
+                    onClick={() => setActiveImg(i)}
+                    style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer', border: activeImg === i ? '2px solid var(--accent-gold)' : '1px solid var(--glass-border)' }}
                   />
                 ))}
               </div>
             </div>
-            <div className="modal-info">
-              <h2>{selectedRoom.name}</h2>
-              <div className="price-tag" style={{ fontSize: '1.8rem' }}>${selectedRoom.price} <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>/ {t.night}</span></div>
-              <p style={{ margin: '1rem 0', color: 'var(--text-secondary)' }}>{t.roomCapacity}: {selectedRoom.capacity} Guests</p>
+            <div className="info-section">
+              <h2 style={{ color: 'var(--text-primary)', marginBottom: '0.5rem' }}>{selectedRoom.name}</h2>
+              <div className="price-tag" style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
+                ${selectedRoom.price} <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>/ {t.night}</span>
+              </div>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>{t.roomCapacity}: {selectedRoom.capacity} Guests</p>
               
-              <div className="modal-amenities">
-                <h4 style={{ marginBottom: '1rem', color: 'white' }}>{t.adminAmenities}</h4>
+              <div style={{ marginBottom: '2rem' }}>
+                <h4 style={{ marginBottom: '0.8rem', color: 'var(--text-primary)', fontSize: '0.9rem', textTransform: 'uppercase' }}>{t.adminAmenities}</h4>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  {selectedRoom.amenities.map(a => <span key={a} className="amenity-pill" style={{ fontSize: '0.9rem', padding: '0.4rem 0.8rem' }}>{a}</span>)}
+                  {selectedRoom.amenities.map(a => <span key={a} className="amenity-pill">{a}</span>)}
                 </div>
               </div>
 
-              <div style={{ marginTop: '2rem' }}>
-                <button 
-                  className="btn-primary" 
-                  style={{ width: '100%', padding: '1.2rem' }}
-                  disabled={!selectedRoom.isAvailable}
-                  onClick={() => {
-                    setBookingFormData({ ...bookingFormData, type: selectedRoom.type.toLowerCase() });
-                    setView('booking');
-                    setSelectedRoom(null);
-                  }}
-                >
-                  {selectedRoom.isAvailable ? t.navBooking : t.reserved}
-                </button>
-              </div>
+              <button 
+                className="btn-primary" 
+                style={{ width: '100%', padding: '1rem' }}
+                disabled={!selectedRoom.isAvailable}
+                onClick={() => {
+                  setBookingFormData({ ...bookingFormData, roomId: selectedRoom.id, type: selectedRoom.type });
+                  setView('booking');
+                  setSelectedRoom(null);
+                }}
+              >
+                {selectedRoom.isAvailable ? t.bookBtn : t.reserved}
+              </button>
             </div>
           </div>
         </div>
