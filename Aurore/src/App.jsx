@@ -5,11 +5,11 @@ import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, update
 
 const translations = {
   en: {
-    heroTitle: "Aurore Ecce Hotel & Resort",
+    heroTitle: "L'Excellence Aurore Ecce",
     heroSub: "Experience the dawn of elegance in Lubumbashi. Premium guest rooms and luxury villas designed for your ultimate comfort and relaxation.",
-    navVenue: "Guest Rooms",
-    navRestaurant: "Restaurant",
-    navBooking: "Book Your Stay",
+    navVenue: "Elite Suites",
+    navRestaurant: "Gastronomy",
+    navBooking: "Reserve Your Stay",
     navAdmin: "Admin",
     hallTitle: "Exquisite Event Space",
     hallDesc: "From luxury weddings to professional conferences, our hall adapts to your needs with state-of-the-art facilities and elegant decor.",
@@ -24,7 +24,7 @@ const translations = {
     formCheckOut: "Check-out Date",
     formType: "Room Type",
     formGuests: "Number of Guests (Adults/Children)",
-    formSelectRoom: "Select Your Room / Villa",
+    formSelectRoom: "Select Your Suite / Villa",
     formSubmit: "Request Reservation",
     bookingSuccess: "Stay requested! Our team will contact you shortly for payment and check-in details.",
     adminDashboard: "Admin Dashboard",
@@ -59,27 +59,27 @@ const translations = {
     price: "Price",
     availability: "Availability",
     selectAmenities: "Select Amenities",
-    villasAndRooms: "Villas & Rooms",
-    chatWithUs: "Chat with Us",
-    typeMessage: "Type a message...",
+    villasAndRooms: "Our Suites & Villas",
+    chatWithUs: "Converser avec la Maison",
+    typeMessage: "Your message...",
     adminChats: "Staff Chats",
     available: "Available",
-    booked: "Booked",
-    night: "night",
+    booked: "Reserved",
+    night: "per night",
     reserved: "RESERVED",
-    viewDetails: "View Photos",
+    viewDetails: "Explore Suite",
     roomImages: "Room Photos (comma separated URLs)",
     searchAvail: "Search Availability",
     adults: "Adults",
     children: "Children",
-    checkIn: "Check-In",
-    checkOut: "Check-Out"
+    checkIn: "Arrival",
+    checkOut: "Departure"
   },
   fr: {
-    heroTitle: "Hôtel & Résidence Aurore Ecce",
+    heroTitle: "L'Excellence Aurore Ecce",
     heroSub: "Vivez l'aube de l'élégance à Lubumbashi. Des chambres d'hôtes de prestige et des villas de luxe conçues pour votre confort ultime.",
-    navVenue: "Nos Chambres",
-    navRestaurant: "Restaurant",
+    navVenue: "Nos Suites",
+    navRestaurant: "Gastronomie",
     navBooking: "Réserver un Séjour",
     navAdmin: "Admin",
     hallTitle: "Espace Événementiel Raffiné",
@@ -95,7 +95,7 @@ const translations = {
     formCheckOut: "Date de départ",
     formType: "Type de Chambre",
     formGuests: "Nombre d'invités (Adultes/Enfants)",
-    formSelectRoom: "Sélectionnez votre chambre / villa",
+    formSelectRoom: "Sélectionnez votre suite / villa",
     formSubmit: "Demander Réservation",
     bookingSuccess: "Séjour demandé ! Notre équipe vous contactera sous peu pour les détails du paiement et de l'enregistrement.",
     adminDashboard: "Tableau de Bord Admin",
@@ -130,21 +130,21 @@ const translations = {
     price: "Prix",
     availability: "Disponibilité",
     selectAmenities: "Sélectionner Équipements",
-    villasAndRooms: "Villas & Chambres",
-    chatWithUs: "Discuter avec nous",
-    typeMessage: "Tapez un message...",
+    villasAndRooms: "Nos Suites & Villas",
+    chatWithUs: "Converser avec la Maison",
+    typeMessage: "Votre message...",
     adminChats: "Messages Staff",
     available: "Disponible",
-    booked: "Occupé",
-    night: "nuit",
+    booked: "Réservé",
+    night: "la nuit",
     reserved: "RÉSERVÉ",
-    viewDetails: "Voir Photos",
+    viewDetails: "Explorer la Suite",
     roomImages: "Photos de la chambre (liens séparés par des virgules)",
     searchAvail: "Vérifier la Disponibilité",
     adults: "Adultes",
     children: "Enfants",
-    checkIn: "Arrivée",
-    checkOut: "Départ"
+    checkIn: "Date d'arrivée",
+    checkOut: "Date de départ"
   }
 };
 
@@ -329,6 +329,7 @@ const App = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2rem' }}>
           <div>
             <h2>{t.villasAndRooms}</h2>
+            <span className="subtitle-french">L'élégance au service de votre repos</span>
             <p style={{ color: 'var(--text-secondary)' }}>Available stays for your selected dates</p>
           </div>
           <div style={{ fontSize: '0.9rem', color: 'var(--accent-gold)' }}>
@@ -381,13 +382,18 @@ const App = () => {
       </section>
 
       <section id="venue" className="app-container" style={{ marginTop: '5rem' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '1rem' }}>Events & Fine Dining</h2>
+        <h2 style={{ textAlign: 'center', marginBottom: '1rem' }}>L'Art de Recevoir</h2>
+        <span className="subtitle-french" style={{ textAlign: 'center', display: 'block', marginBottom: '1rem' }}>Halls de Prestige & Gastronomie</span>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', maxWidth: '700px', margin: '0 auto 3rem' }}>Host world-class events in our versatile halls or enjoy culinary masterpieces at our restaurant.</p>
         <div className="card-grid">
           {rooms.filter(r => r.type === 'Venue' || r.type === 'Garden' || r.type === 'Lounge').map(room => (
             <div className="card" key={room.id}>
               <div style={{ position: 'relative' }}>
-                <img src={room.images ? room.images.split(',')[0] : room.image} alt={room.name} />
+                <img 
+                  src={`${(room.images ? room.images.split(',')[0] : room.image)}?auto=format&fit=crop&w=600&q=70`} 
+                  alt={room.name} 
+                  loading="lazy"
+                />
                 <span className={`availability-badge ${room.isAvailable ? 'available' : 'booked'}`}>
                   {room.isAvailable ? 'OPEN' : t.reserved}
                 </span>

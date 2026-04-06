@@ -1,17 +1,17 @@
 :root {
   --bg-color: #ffffff;
-  --bg-card: #f8fafc;
-  --text-primary: #0a192f;
-  --text-secondary: #475569;
-  --accent-gold: #b8860b;
-  --accent-gold-hover: #a67c00;
-  --accent-blue: #2563eb;
+  --bg-card: #fdfdfd;
+  --text-primary: #1a202c;
+  --text-secondary: #64748b;
+  --accent-gold: #c5a059;
+  --accent-gold-hover: #b48a3e;
+  --accent-blue: #0f172a;
   --font-serif: 'Playfair Display', serif;
   --font-sans: 'Outfit', 'Inter', sans-serif;
-  --glass-bg: rgba(255, 255, 255, 0.8);
-  --glass-border: rgba(184, 134, 11, 0.1);
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --glass-bg: rgba(255, 255, 255, 0.95);
+  --glass-border: rgba(197, 160, 89, 0.15);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.03);
+  --shadow-md: 0 10px 30px -5px rgb(0 0 0 / 0.05);
 }
 
 * {
@@ -28,9 +28,26 @@ body {
   overflow-x: hidden;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1, h2, h3 {
   font-family: var(--font-serif);
+  color: var(--accent-blue);
+  font-weight: 400;
+  letter-spacing: -0.5px;
+}
+
+h2 {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+}
+
+.subtitle-french {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 1.2rem;
   color: var(--accent-gold);
+  margin-bottom: 2rem;
+  display: block;
+  letter-spacing: 0.5px;
 }
 
 a {
@@ -152,24 +169,34 @@ nav.scrolled {
 
 /* Hero Section */
 .hero {
-  height: 90vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   text-align: center;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6)), url('https://images.unsplash.com/photo-1542314831-068cd1dbfeeb');
+  background-image: linear-gradient(rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.45)), url('https://images.unsplash.com/photo-1549294413-26f195200c16');
   background-size: cover;
   background-position: center;
   margin-top: 0;
   position: relative;
 }
 
-.hero .app-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  z-index: 10;
+.hero h1 {
+  font-size: 5rem;
+  line-height: 1;
+  margin-bottom: 2rem;
+  max-width: 1000px;
+  font-weight: 400;
+}
+
+.hero p {
+  font-size: 1.5rem;
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--accent-blue);
+  margin-bottom: 3.5rem;
+  max-width: 700px;
 }
 
 .booking-bar-hero {
