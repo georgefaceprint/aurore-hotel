@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import './index.css';
-import { db, storage } from './firebase';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, doc, deleteDoc } from 'firebase/firestore';
+import { db, storage, auth } from './firebase';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, doc, deleteDoc, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
 
 const translations = {
   en: {
@@ -163,6 +164,23 @@ const App = () => {
   const [lang, setLang] = useState('fr');
   const [view, setView] = useState('home');
   const [isScrolled, setIsScrolled] = useState(false);
+  const [user, setUser] = useState(null);
+  const [bookingStep, setBookingStep] = useState('details'); // details, summary
+  const [activeHeroIdx, setActiveHeroIdx] = useState(0);
+  const heroImages = [
+    'https://images.unsplash.com/photo-1549294413-26f195200c16', // Estate
+    'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb', // Palace
+    'https://images.unsplash.com/photo-1571896349842-33c89424de2d', // Pool Elite
+    'https://images.unsplash.com/photo-1566073771259-bc3b8c2537e5'  // Lobby Gold
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveHeroIdx((prev) => (prev + 1) % heroImages.length);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, []);
+
   const [bookingFormData, setBookingFormData] = useState({ 
     firstName: '', 
     lastName: '', 
@@ -237,6 +255,7 @@ const App = () => {
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      unsub();
       unsubReservations();
       unsubRooms();
       unsubAmenities();
@@ -245,20 +264,41 @@ const App = () => {
     };
   }, []);
 
+  const handleGoogleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      setBookingFormData({
+        ...bookingFormData,
+        firstName: result.user.displayName.split(' ')[0],
+        lastName: result.user.displayName.split(' ').slice(1).join(' ') || '',
+        email: result.user.email
+      });
+    } catch (error) {
+      console.error("Auth error:", error);
+    }
+  };
+
   const handleBookingSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    if (bookingStep === 'details') {
+      setBookingStep('summary');
+      return;
+    }
+    
     try {
       const room = rooms.find(r => r.id === bookingFormData.roomId);
       const newReservation = {
         ...bookingFormData,
+        userId: user?.uid || null,
         roomName: room?.name || 'N/A',
         status: 'pending',
         createdAt: serverTimestamp()
       };
       
       await addDoc(collection(db, "reservations"), newReservation);
-      
       setBookingStatus('success');
+      setBookingStep('details');
       setTimeout(() => {
         setBookingStatus(null);
         setView('home');
@@ -297,7 +337,10 @@ const App = () => {
 
   const renderHome = () => (
     <>
-      <section className="hero">
+      <section className="hero" style={{ 
+        backgroundImage: `linear-gradient(rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.45)), url('${heroImages[activeHeroIdx]}?auto=format&fit=crop&w=1600&q=80')`,
+        transition: 'background-image 1.5s ease-in-out'
+      }}>
         <div className="app-container fade-in-up">
           <h1>{t.heroTitle}</h1>
           <p>{t.heroSub}</p>
@@ -427,150 +470,182 @@ const App = () => {
           ))}
         </div>
       </section>
+
+      {/* Gastronomy Section */}
+      <section id="restaurant" className="glass" style={{ margin: '5rem 2rem', padding: '5rem 2rem', borderRadius: '24px' }}>
+        <div className="app-container" style={{ display: 'grid', gridTemplateColumns: window.innerWidth > 768 ? '1fr 1.2fr' : '1fr', gap: '4rem', alignItems: 'center' }}>
+          <div>
+            <span className="subtitle-french" style={{ color: 'var(--accent-gold)' }}>Expérience Culinaire</span>
+            <h2 style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>Le Restaurant de l'Aurore</h2>
+            <p style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', lineHeight: 1.8, marginBottom: '2rem' }}>
+              Experience the pinnacle of French-Congolais fusion at our signature restaurant. Our chefs utilize locally sourced ingredients to create masterpieces that dance on the palate, served in an atmosphere of unparalleled elegance.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2.5rem' }}>
+              <div>
+                <h4 style={{ color: 'var(--accent-gold)' }}>Fine Dining</h4>
+                <p style={{ fontSize: '0.85rem' }}>Gourmet dinners under the stars.</p>
+              </div>
+              <div>
+                <h4 style={{ color: 'var(--accent-gold)' }}>Brunch Elite</h4>
+                <p style={{ fontSize: '0.85rem' }}>Sundays of luxury and flavor.</p>
+              </div>
+            </div>
+            <button className="btn-primary">Reserve a Table</button>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <img src="https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=800&q=80" style={{ width: '100%', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }} alt="Dining" />
+            <div className="glass" style={{ position: 'absolute', bottom: '-20px', left: '-20px', padding: '1.5rem', background: '#fff' }}>
+              <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-gold)' }}>3 Michelin</span>
+              <p style={{ fontSize: '0.8rem' }}>Inspired Service</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Event Gallery */}
+      <section className="app-container" style={{ paddingBottom: '8rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
+          <h2 style={{ fontSize: '2.5rem' }}>Galerie des Événements</h2>
+          <span className="subtitle-french">Moments d'exception à Aurore Ecce</span>
+        </div>
+        <div className="listing-grid">
+          {[
+            'https://images.unsplash.com/photo-1511795409834-ef04bbd61622',
+            'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3',
+            'https://images.unsplash.com/photo-1519167758481-83f550bb49b3',
+            'https://images.unsplash.com/photo-1505232458593-29695b8a910d'
+          ].map((url, i) => (
+            <div key={i} className="glass" style={{ height: '300px', overflow: 'hidden', padding: 0 }}>
+              <img src={`${url}?auto=format&fit=crop&w=600&q=70`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Event" />
+            </div>
+          ))}
+        </div>
+      </section>
     </>
   );
 
-  const renderBooking = () => (
-    <section className="app-container" style={{ marginTop: '100px' }}>
-      <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>{t.navBooking}</h2>
-      {bookingStatus === 'success' ? (
-        <div className="glass fade-in-up" style={{ padding: '3rem', textAlign: 'center', border: '1px solid var(--accent-gold)' }}>
-          <h3 style={{ color: 'var(--accent-gold)' }}>{t.bookingSuccess}</h3>
-        </div>
-      ) : (
-        <form className="glass" style={{ padding: '2rem', maxWidth: '600px', margin: '0 auto' }} onSubmit={handleBookingSubmit}>
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formSelectRoom}</label>
-            <select
-              required
-              className="admin-input"
-              style={{ width: '100%', marginTop: 0 }}
-              value={bookingFormData.roomId}
-              onChange={(e) => {
-                const room = rooms.find(r => r.id === e.target.value);
-                setBookingFormData({ ...bookingFormData, roomId: e.target.value, type: room?.type || '' });
-              }}
-            >
-              <option value="">-- Choose a Space --</option>
-              {rooms.map(room => (
-                <option key={room.id} value={room.id} disabled={!room.isAvailable}>
-                  {room.name} ({room.type}) - ${room.price} {room.isAvailable ? '' : `(${t.reserved})`}
-                </option>
-              ))}
-            </select>
+  const renderBooking = () => {
+    if (bookingStatus === 'success') {
+      return (
+        <section className="app-container" style={{ paddingTop: '10rem', textAlign: 'center' }}>
+          <div className="glass fade-in-up" style={{ padding: '4rem', maxWidth: '600px', margin: '0 auto' }}>
+            <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>✨</div>
+            <h2 style={{ color: 'var(--accent-gold)' }}>L'Excellence Confirmée</h2>
+            <p style={{ marginTop: '1rem', color: 'var(--text-secondary)' }}>{t.bookingSuccess}</p>
+            <button className="btn-secondary" style={{ marginTop: '2rem' }} onClick={() => setView('home')}>Return to Home</button>
           </div>
-          <div className="glass" style={{ padding: '1.5rem', marginBottom: '1.5rem', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Almost done! Just fill in the * required info</span>
-          </div>
+        </section>
+      );
+    }
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formName} *</label>
-              <input
-                type="text"
-                required
-                className="admin-input"
-                style={{ width: '100%', marginTop: 0 }}
-                value={bookingFormData.firstName}
-                onChange={(e) => setBookingFormData({ ...bookingFormData, firstName: e.target.value })}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formLastName} *</label>
-              <input
-                type="text"
-                required
-                className="admin-input"
-                style={{ width: '100%', marginTop: 0 }}
-                value={bookingFormData.lastName}
-                onChange={(e) => setBookingFormData({ ...bookingFormData, lastName: e.target.value })}
-              />
-            </div>
-          </div>
+    const selectedRoomData = rooms.find(r => r.id === bookingFormData.roomId);
+    const nights = (new Date(bookingFormData.checkOut) - new Date(bookingFormData.checkIn)) / (1000 * 60 * 60 * 24) || 1;
+    const total = (selectedRoomData?.price || 0) * Math.max(1, nights);
 
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formEmail} *</label>
-            <input
-              type="email"
-              required
-              className="admin-input"
-              style={{ width: '100%', marginTop: 0 }}
-              value={bookingFormData.email}
-              onChange={(e) => setBookingFormData({ ...bookingFormData, email: e.target.value })}
-              placeholder="Ex: jean@example.com"
-            />
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.3rem', display: 'block' }}>Confirmation email sent to this address</span>
-          </div>
+    return (
+      <section className="app-container" style={{ paddingBottom: '5rem', paddingTop: '8rem' }}>
+        <h2 style={{ textAlign: 'center', marginBottom: '3rem' }}>{t.navBooking}</h2>
+        <form onSubmit={handleBookingSubmit} className="glass fade-in-up" style={{ maxWidth: '700px', margin: '0 auto', padding: '3rem' }}>
+          
+          {bookingStep === 'details' ? (
+            <>
+              {!user && (
+                <div style={{ marginBottom: '2rem', textAlign: 'center', padding: '1rem', background: '#f1f5f9', borderRadius: '8px' }}>
+                  <p style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>Sign in to track your reservation and earn loyalty rewards.</p>
+                  <button type="button" onClick={handleGoogleLogin} className="btn-secondary" style={{ width: '100%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" alt="Google" />
+                    Sign in with Google
+                  </button>
+                </div>
+              )}
+              
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formSelectRoom}</label>
+                <select
+                  required
+                  className="admin-input"
+                  style={{ width: '100%', marginTop: 0 }}
+                  value={bookingFormData.roomId}
+                  onChange={(e) => setBookingFormData({ ...bookingFormData, roomId: e.target.value })}
+                >
+                  <option value="">{t.formSelectRoom}</option>
+                  {rooms.filter(r => r.isAvailable).map(room => (
+                    <option key={room.id} value={room.id}>{room.name} - ${room.price}</option>
+                  ))}
+                </select>
+              </div>
 
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formCountry} *</label>
-            <select
-              className="admin-input"
-              style={{ width: '100%', marginTop: 0 }}
-              value={bookingFormData.country}
-              onChange={(e) => setBookingFormData({ ...bookingFormData, country: e.target.value })}
-            >
-              <option value="Democratic Republic of the Congo (+243)">Democratic Republic of the Congo (+243)</option>
-              <option value="Zambia (+260)">Zambia (+260)</option>
-              <option value="Belgium (+32)">Belgium (+32)</option>
-              <option value="France (+33)">France (+33)</option>
-              <option value="USA (+1)">USA (+1)</option>
-            </select>
-          </div>
+              <div className="glass" style={{ padding: '1.5rem', marginBottom: '1.5rem', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Almost done! Just fill in the * required info</span>
+              </div>
 
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formPhone} *</label>
-            <input
-              type="tel"
-              required
-              className="admin-input"
-              style={{ width: '100%', marginTop: 0 }}
-              value={bookingFormData.phone}
-              onChange={(e) => setBookingFormData({ ...bookingFormData, phone: e.target.value })}
-              placeholder="Ex: 81 234 5678"
-            />
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.3rem', display: 'block' }}>To verify your booking, and for the property to connect if needed</span>
-          </div>
-          <div style={{ marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formCheckIn}</label>
-              <input
-                type="date"
-                required
-                className="admin-input"
-                style={{ marginTop: 0 }}
-                value={bookingFormData.checkIn}
-                onChange={(e) => setBookingFormData({ ...bookingFormData, checkIn: e.target.value })}
-              />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formName} *</label>
+                  <input type="text" required className="admin-input" style={{ width: '100%', marginTop: 0 }} value={bookingFormData.firstName} onChange={(e) => setBookingFormData({ ...bookingFormData, firstName: e.target.value })} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formLastName} *</label>
+                  <input type="text" required className="admin-input" style={{ width: '100%', marginTop: 0 }} value={bookingFormData.lastName} onChange={(e) => setBookingFormData({ ...bookingFormData, lastName: e.target.value })} />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formEmail} *</label>
+                <input type="email" required className="admin-input" style={{ width: '100%', marginTop: 0 }} value={bookingFormData.email} onChange={(e) => setBookingFormData({ ...bookingFormData, email: e.target.value })} />
+              </div>
+
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formPhone} *</label>
+                <input type="tel" required className="admin-input" style={{ width: '100%', marginTop: 0 }} value={bookingFormData.phone} onChange={(e) => setBookingFormData({ ...bookingFormData, phone: e.target.value })} placeholder="Ex: 81 234 5678" />
+              </div>
+
+              <div style={{ marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formCheckIn}</label>
+                  <input type="date" required className="admin-input" style={{ width: '100%', marginTop: 0 }} value={bookingFormData.checkIn} onChange={(e) => setBookingFormData({ ...bookingFormData, checkIn: e.target.value })} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formCheckOut}</label>
+                  <input type="date" required className="admin-input" style={{ width: '100%', marginTop: 0 }} value={bookingFormData.checkOut} onChange={(e) => setBookingFormData({ ...bookingFormData, checkOut: e.target.value })} />
+                </div>
+              </div>
+              <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '1rem' }}>Review Summary</button>
+            </>
+          ) : (
+            <div className="fade-in-up">
+              <h3 style={{ marginBottom: '1.5rem', borderBottom: '1px solid #eee', paddingBottom: '1rem' }}>Booking Summary</h3>
+              <div style={{ display: 'grid', gap: '1rem', marginBottom: '2rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Guest:</span>
+                  <span style={{ fontWeight: 600 }}>{bookingFormData.firstName} {bookingFormData.lastName}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Space:</span>
+                  <span style={{ fontWeight: 600 }}>{selectedRoomData?.name}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Stay:</span>
+                  <span style={{ fontWeight: 600 }}>{bookingFormData.checkIn} to {bookingFormData.checkOut} ({nights} nights)</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem', paddingTop: '1rem', borderTop: '2px solid #f1f5f9' }}>
+                  <span style={{ fontSize: '1.2rem', fontWeight: 600 }}>Total Price:</span>
+                  <span style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-gold)' }}>${total}</span>
+                </div>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '2rem' }}>
+                By confirming, you agree to pay in cash once your reservation is officially confirmed by our office staff.
+              </p>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => setBookingStep('details')}>Back to Edit</button>
+                <button type="submit" className="btn-primary" style={{ flex: 2 }}>{t.formSubmit}</button>
+              </div>
             </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formCheckOut}</label>
-              <input
-                type="date"
-                required
-                className="admin-input"
-                style={{ marginTop: 0 }}
-                value={bookingFormData.checkOut}
-                onChange={(e) => setBookingFormData({ ...bookingFormData, checkOut: e.target.value })}
-              />
-            </div>
-          </div>
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formGuests}</label>
-            <input
-              type="number"
-              placeholder="2"
-              className="admin-input"
-              style={{ marginTop: 0 }}
-              value={parseInt(bookingFormData.adults) + parseInt(bookingFormData.children)}
-              readOnly
-            />
-          </div>
-          <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '1rem' }}>{t.formSubmit}</button>
+          )}
         </form>
-      )}
-    </section>
-  );
+      </section>
+    );
+  };
 
   const handleAddRoom = async (e) => {
     e.preventDefault();
@@ -677,7 +752,6 @@ const App = () => {
       await deleteDoc(doc(db, "employees", id));
     }
   };
-
   const handleUpdateStatus = async (id, status) => {
     try {
       const docRef = doc(db, "reservations", id);
@@ -688,11 +762,49 @@ const App = () => {
   };
 
   const renderAdmin = () => {
+    const revenue = reservations.reduce((acc, r) => acc + (rooms.find(rm => rm.id === r.roomId)?.price || 0), 0);
+    const confirmedCount = reservations.filter(r => r.status === 'confirmed' || r.status === 'checked-in').length;
+
+    const handleSeedData = async () => {
+      if (rooms.length === 0) {
+        alert("Please add at least one space before seeding bookings.");
+        return;
+      }
+      if (!window.confirm("Seed 20 mock reservations for the last 5 days?")) return;
+      
+      const firstNames = ["Jean", "Marie", "Marc", "Alice", "David", "Sophie", "Paul", "Emma"];
+      const lastNames = ["Mukendi", "Kabila", "Lumumba", "Tshisekedi", "Ngoy", "Ilunga"];
+      const statuses = ["pending", "confirmed", "checked-in"];
+      
+      for (let i = 0; i < 20; i++) {
+        const room = rooms[Math.floor(Math.random() * rooms.length)];
+        const date = new Date();
+        date.setDate(date.getDate() - Math.floor(Math.random() * 5));
+        
+        await addDoc(collection(db, "reservations"), {
+          firstName: firstNames[Math.floor(Math.random() * firstNames.length)],
+          lastName: lastNames[Math.floor(Math.random() * lastNames.length)],
+          email: "guest@example.com",
+          phone: "+243 81 234 5678",
+          country: "DR Congo",
+          roomId: room.id,
+          roomName: room.name,
+          checkIn: date.toISOString().split('T')[0],
+          checkOut: new Date(date.getTime() + 86400000 * 2).toISOString().split('T')[0],
+          adults: "2",
+          children: "1",
+          status: statuses[Math.floor(Math.random() * statuses.length)],
+          createdAt: serverTimestamp()
+        });
+      }
+      alert("20 Reservations Seeded!");
+    };
+
     if (!isAdminLoggedIn) {
       return (
-        <section className="app-container" style={{ marginTop: '150px', display: 'flex', justifyContent: 'center' }}>
-          <div className="glass fade-in-up" style={{ padding: '3rem', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
-            <h2 style={{ color: 'var(--accent-gold)', marginBottom: '2rem' }}>Staff Login</h2>
+        <section className="app-container" style={{ paddingTop: '10rem', textAlign: 'center' }}>
+          <div className="glass" style={{ maxWidth: '400px', margin: '0 auto', padding: '3rem' }}>
+            <h2 style={{ marginBottom: '1.5rem' }}>Staff Access</h2>
             <form onSubmit={handleLogin}>
               <div className="admin-form-group" style={{ textAlign: 'left', marginBottom: '1rem' }}>
                 <label>Staff Email</label>
@@ -725,44 +837,73 @@ const App = () => {
     }
 
     return (
-      <section className="app-container" style={{ marginTop: '100px', minHeight: '80vh' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <h2>{t.adminDashboard}</h2>
+      <section className="app-container" style={{ paddingTop: '8rem', paddingBottom: '5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
+          <div>
+            <h1>{t.adminDashboard}</h1>
+            <span className="subtitle-french">L'Excellence Maison Aurore</span>
+          </div>
           <div style={{ display: 'flex', gap: '1rem' }}>
+            <button className="btn-secondary" style={{ borderColor: 'var(--accent-gold)', color: 'var(--accent-gold)' }} onClick={handleSeedData}>Seed Demo Data</button>
             <button className="btn-secondary" style={{ borderColor: '#ff4d4d', color: '#ff4d4d' }} onClick={() => setIsAdminLoggedIn(false)}>Logout</button>
             <button className="btn-secondary" onClick={() => setView('home')}>{t.backHome}</button>
           </div>
         </div>
 
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
+          <div className="glass" style={{ padding: '1.5rem', textAlign: 'center', background: '#fff' }}>
+            <h4 style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Total Revenue</h4>
+            <div style={{ fontSize: '2rem', fontWeight: 600, color: 'var(--accent-blue)' }}>${revenue.toLocaleString()}</div>
+          </div>
+          <div className="glass" style={{ padding: '1.5rem', textAlign: 'center', background: '#fff' }}>
+            <h4 style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Reservations</h4>
+            <div style={{ fontSize: '2rem', fontWeight: 600, color: 'var(--accent-gold)' }}>{reservations.length}</div>
+          </div>
+          <div className="glass" style={{ padding: '1.5rem', textAlign: 'center', background: '#fff' }}>
+            <h4 style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Occupancy Rate</h4>
+            <div style={{ fontSize: '2rem', fontWeight: 600, color: '#10b981' }}>{Math.round((confirmedCount / (rooms.length || 1)) * 100)}%</div>
+          </div>
+        </div>
+
         <div className="admin-tabs">
-          <button className={`admin-tab ${adminActiveTab === 'overview' ? 'active' : ''}`} onClick={() => setAdminActiveTab('overview')}>Overview</button>
           <button className={`admin-tab ${adminActiveTab === 'reservations' ? 'active' : ''}`} onClick={() => setAdminActiveTab('reservations')}>{t.adminReservations}</button>
           <button className={`admin-tab ${adminActiveTab === 'rooms' ? 'active' : ''}`} onClick={() => setAdminActiveTab('rooms')}>{t.adminRooms}</button>
           <button className={`admin-tab ${adminActiveTab === 'amenities' ? 'active' : ''}`} onClick={() => setAdminActiveTab('amenities')}>{t.adminAmenities}</button>
-          <button className={`admin-tab ${adminActiveTab === 'employees' ? 'active' : ''}`} onClick={() => setAdminActiveTab('employees')}>{t.adminEmployees}</button>
-          <button className={`admin-tab ${adminActiveTab === 'analytics' ? 'active' : ''}`} onClick={() => setAdminActiveTab('analytics')}>{t.adminAnalytics}</button>
           <button className={`admin-tab ${adminActiveTab === 'chats' ? 'active' : ''}`} onClick={() => setAdminActiveTab('chats')}>{t.adminChats}</button>
+          <button className={`admin-tab ${adminActiveTab === 'analytics' ? 'active' : ''}`} onClick={() => setAdminActiveTab('analytics')}>{t.adminAnalytics}</button>
         </div>
 
-        {adminActiveTab === 'overview' && (
+        {adminActiveTab === 'analytics' && (
           <div className="fade-in-up">
-            <div className="card-grid">
-              <div className="card glass">
-                <h4 style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '0.8rem' }}>{t.occupancy} (Confirmed)</h4>
-                <div style={{ fontSize: '2.5rem', fontWeight: '700', color: 'var(--accent-gold)' }}>
-                  {Math.round((reservations.filter(r => r.status === 'confirmed' || r.status === 'checked-in').length / (rooms.length || 1)) * 100)}%
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
+              <div className="glass" style={{ padding: '2rem', background: '#fff' }}>
+                <h3>Revenue Trends (Last 5 Days)</h3>
+                <div style={{ height: '200px', display: 'flex', alignItems: 'flex-end', gap: '1rem', marginTop: '2rem' }}>
+                  {[45, 60, 35, 80, 55, 90].map((h, i) => (
+                    <div key={i} style={{ flex: 1, backgroundColor: 'var(--accent-gold)', height: `${h}%`, borderRadius: '4px 4px 0 0', position: 'relative' }}>
+                      <div style={{ position: 'absolute', top: -20, width: '100%', textAlign: 'center', fontSize: '0.65rem' }}>${(h * (revenue/100)).toFixed(0)}</div>
+                    </div>
+                  ))}
                 </div>
-                <p style={{ fontSize: '0.9rem' }}>{rooms.length} Active Spaces</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                  <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+                </div>
               </div>
-              <div className="card glass">
-                <h4 style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '0.8rem' }}>Total Bookings</h4>
-                <div style={{ fontSize: '2.5rem', fontWeight: '700', color: 'var(--accent-gold)' }}>{reservations.length}</div>
-                <p style={{ fontSize: '0.9rem' }}>{reservations.filter(r => r.status === 'pending').length} Pending Review</p>
-              </div>
-              <div className="card glass">
-                <h4 style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '0.8rem' }}>New Messages</h4>
-                <div style={{ fontSize: '2.5rem', fontWeight: '700', color: 'var(--accent-gold)' }}>{chatMessages.filter(m => m.sender === 'user').length}</div>
-                <p style={{ fontSize: '0.9rem' }}>Awaiting Staff Reply</p>
+              <div className="glass" style={{ padding: '2rem', background: '#fff' }}>
+                <h3>Category Performance</h3>
+                <div style={{ marginTop: '1.5rem' }}>
+                  {['Elite Suites', 'Luxury Villas', 'Prestige Venues'].map((cat, i) => (
+                    <div key={i} style={{ marginBottom: '1.5rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontSize: '0.9rem' }}>
+                        <span>{cat}</span>
+                        <span>{75 - (i * 15)}%</span>
+                      </div>
+                      <div style={{ width: '100%', height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ width: `${75 - (i * 15)}%`, height: '100%', background: 'var(--accent-blue)' }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -771,44 +912,37 @@ const App = () => {
         {adminActiveTab === 'reservations' && (
           <div className="glass fade-in-up" style={{ padding: '2rem' }}>
             <h3>{t.adminReservations}</h3>
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Guest</th>
-                  <th>Contact</th>
-                  <th>Stay</th>
-                  <th>Space</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reservations.map(res => (
-                  <tr key={res.id}>
-                    <td>{res.firstName} {res.lastName}</td>
-                    <td>
-                      <div style={{ fontSize: '0.85rem' }}>{res.email}</div>
-                      <div style={{ fontSize: '0.85rem' }}>{res.phone}</div>
-                    </td>
-                    <td>{res.checkIn} to {res.checkOut}</td>
-                    <td>{rooms.find(r => r.id === res.roomId)?.name || 'Deleted Space'}</td>
-                    <td>
-                      <span className={`status-badge status-${res.status}`}>
-                        {res.status}
-                      </span>
-                    </td>
-                    <td>
-                      {res.status === 'pending' && (
-                        <button className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', marginRight: '0.5rem' }} onClick={() => handleUpdateStatus(res.id, 'confirmed')}>{t.confirmBtn}</button>
-                      )}
-                      {res.status === 'confirmed' && (
-                        <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }} onClick={() => handleUpdateStatus(res.id, 'checked-in')}>{t.checkInBtn}</button>
-                      )}
-                    </td>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Guest</th>
+                    <th>Contact</th>
+                    <th>Stay</th>
+                    <th>Space</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {reservations.map(res => (
+                    <tr key={res.id}>
+                      <td>{res.firstName} {res.lastName}</td>
+                      <td>
+                        <div style={{ fontSize: '0.8rem' }}>{res.email}</div>
+                        <div style={{ fontSize: '0.8rem' }}>{res.phone}</div>
+                      </td>
+                      <td>{res.checkIn} to {res.checkOut}</td>
+                      <td>{rooms.find(r => r.id === res.roomId)?.name || res.roomName || 'Deleted Space'}</td>
+                      <td className={`status-${res.status}`}>{res.status}</td>
+                      <td>
+                        {res.status === 'pending' && <button className="btn-primary" style={{ padding: '0.4rem 0.6rem', fontSize: '0.7rem' }} onClick={() => handleUpdateStatus(res.id, 'confirmed')}>{t.confirmBtn}</button>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -817,115 +951,29 @@ const App = () => {
             <div className="glass" style={{ padding: '2rem', marginBottom: '2rem' }}>
               <h3>{t.addRoom}</h3>
               <form onSubmit={handleAddRoom} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '1.5rem' }}>
-                <div className="admin-form-group">
-                  <label>{t.roomName}</label>
-                  <input className="admin-input" value={newRoom.name} onChange={(e) => setNewRoom({ ...newRoom, name: e.target.value })} required placeholder="E.g. Villa Royale" />
-                </div>
-                <div className="admin-form-group">
-                  <label>{t.price} ($)</label>
-                  <input type="number" className="admin-input" value={newRoom.price} onChange={(e) => setNewRoom({ ...newRoom, price: e.target.value })} required placeholder="300" />
-                </div>
-                <div className="admin-form-group">
-                  <label>{t.roomCapacity}</label>
-                  <input type="number" className="admin-input" value={newRoom.capacity} onChange={(e) => setNewRoom({ ...newRoom, capacity: e.target.value })} required placeholder="E.g. 50" />
-                </div>
-                <div className="admin-form-group">
-                  <label>{t.roomNumber}</label>
-                  <input className="admin-input" value={newRoom.number} onChange={(e) => setNewRoom({ ...newRoom, number: e.target.value })} placeholder="E.g. #101" />
-                </div>
-                <div className="admin-form-group">
-                  <label>{t.roomType}</label>
-                  <select className="admin-input" value={newRoom.type} onChange={(e) => setNewRoom({ ...newRoom, type: e.target.value })}>
-                    <option value="Venue">Venue</option>
-                    <option value="Villa">Villa</option>
-                    <option value="Room">Room</option>
-                    <option value="Garden">Garden</option>
-                    <option value="Lounge">Lounge</option>
-                  </select>
-                </div>
+                <div className="admin-form-group"><label>{t.roomName}</label><input className="admin-input" value={newRoom.name} onChange={(e) => setNewRoom({ ...newRoom, name: e.target.value })} required /></div>
+                <div className="admin-form-group"><label>{t.price} ($)</label><input type="number" className="admin-input" value={newRoom.price} onChange={(e) => setNewRoom({ ...newRoom, price: e.target.value })} required /></div>
+                <div className="admin-form-group"><label>{t.roomCapacity}</label><input type="number" className="admin-input" value={newRoom.capacity} onChange={(e) => setNewRoom({ ...newRoom, capacity: e.target.value })} required /></div>
+                <div className="admin-form-group"><label>{t.roomNumber}</label><input className="admin-input" value={newRoom.number} onChange={(e) => setNewRoom({ ...newRoom, number: e.target.value })} /></div>
                 <div className="admin-form-group" style={{ gridColumn: '1 / -1' }}>
-                  <label>{t.roomImages} (Manual URL or Upload)</label>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <input className="admin-input" style={{ flex: 1, marginTop: 0 }} value={newRoom.images} onChange={(e) => setNewRoom({ ...newRoom, images: e.target.value })} placeholder="URLs separated by comma" />
-                    <label className="btn-secondary" style={{ padding: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-                      {uploading ? '...' : t.uploadPhotos}
-                      <input type="file" multiple accept="image/*" onChange={handleImageUpload} hidden disabled={uploading} />
-                    </label>
-                  </div>
-                  {newRoom.images && (
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      {newRoom.images.split(',').map((img, i) => (
-                        <div key={i} style={{ position: 'relative' }}>
-                          <img src={img.trim()} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '4px' }} alt="Preview" />
-                          <button 
-                            type="button" 
-                            style={{ position: 'absolute', top: -5, right: -5, background: '#ff4d4d', color: 'white', borderRadius: '50%', width: '18px', height: '18px', fontSize: '10px' }}
-                            onClick={() => {
-                              const remain = newRoom.images.split(',').filter((_, idx) => idx !== i);
-                              setNewRoom({ ...newRoom, images: remain.join(',') });
-                            }}
-                          >✕</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="admin-form-group" style={{ gridColumn: '1 / -1' }}>
-                  <label>{t.selectAmenities}</label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
-                    {amenities.map(a => (
-                      <button
-                        key={a.id}
-                        type="button"
-                        onClick={() => toggleAmenityInNewRoom(a.name)}
-                        className={`amenity-pill ${newRoom.amenities.includes(a.name) ? 'active' : ''}`}
-                        style={{ border: newRoom.amenities.includes(a.name) ? '1px solid var(--accent-gold)' : '1px solid var(--glass-border)', color: newRoom.amenities.includes(a.name) ? 'var(--accent-gold)' : 'var(--text-primary)' }}
-                      >
-                        {a.name}
-                      </button>
-                    ))}
+                  <label>{t.roomImages}</label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input className="admin-input" style={{ flex: 1 }} value={newRoom.images} onChange={(e) => setNewRoom({ ...newRoom, images: e.target.value })} />
+                    <label className="btn-secondary" style={{ cursor: 'pointer' }}>Upload <input type="file" multiple onChange={handleImageUpload} hidden /></label>
                   </div>
                 </div>
-                <div className="admin-form-group" style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', gridColumn: '1 / -1' }}>
-                  <button type="submit" className="btn-primary" style={{ flex: 2 }}>{editingRoomId ? "Update Space" : t.addRoom}</button>
-                  {editingRoomId && (
-                    <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => {
-                      setEditingRoomId(null);
-                      setNewRoom({ name: '', price: '', capacity: '', type: 'Room', amenities: [], images: '' });
-                    }}>Cancel</button>
-                  )}
-                </div>
+                <button type="submit" className="btn-primary" style={{ gridColumn: '1 / -1' }}>{editingRoomId ? "Update" : "Add"} Space</button>
               </form>
             </div>
-
             <div className="glass" style={{ padding: '2rem' }}>
-              <h3>Current {t.adminRooms}</h3>
               <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>{t.roomName}</th>
-                    <th>{t.price}</th>
-                    <th>{t.availability}</th>
-                    <th>{t.actions}</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>{t.roomName}</th><th>{t.price}</th><th>Actions</th></tr></thead>
                 <tbody>
-                  {rooms.map(room => (
-                    <tr key={room.id}>
-                      <td>
-                        <strong>{room.name}</strong>
-                        {room.number && <span style={{ color: 'var(--accent-gold)', marginLeft: '0.5rem' }}>{room.number}</span>}
-                      </td>
-                      <td>${room.price}</td>
-                      <td>
-                        <button onClick={() => toggleRoomAvailability(room.id, room.isAvailable)} className={`status-badge ${room.isAvailable ? 'status-confirmed' : 'status-pending'}`} style={{ cursor: 'pointer' }}>
-                          {room.isAvailable ? t.available : t.booked}
-                        </button>
-                      </td>
-                      <td style={{ display: 'flex', gap: '1rem' }}>
-                        <button style={{ color: 'var(--accent-gold)', fontSize: '0.8rem', fontWeight: 600 }} onClick={() => handleEditRoom(room)}>Edit</button>
-                        <button style={{ color: '#ff4d4d', fontSize: '0.8rem' }} onClick={() => handleDeleteRoom(room.id)}>Delete</button>
-                      </td>
+                  {rooms.map(r => (
+                    <tr key={r.id}>
+                      <td>{r.name} {r.number}</td>
+                      <td>${r.price}</td>
+                      <td><button onClick={() => handleEditRoom(r)}>Edit</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -935,208 +983,18 @@ const App = () => {
         )}
 
         {adminActiveTab === 'amenities' && (
-          <div className="fade-in-up">
-            <div className="glass" style={{ padding: '2rem', marginBottom: '2rem' }}>
-              <h3>{t.addAmenity}</h3>
-              <form onSubmit={handleAddAmenity} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '1.5rem' }}>
-                <div className="admin-form-group">
-                  <label>{t.amenityName}</label>
-                  <input className="admin-input" value={newAmenity.name} onChange={(e) => setNewAmenity({ ...newAmenity, name: e.target.value })} required placeholder="E.g. Wi-Fi 6" />
-                </div>
-                <div className="admin-form-group">
-                  <label>{t.amenityCategory}</label>
-                  <select className="admin-input" value={newAmenity.category} onChange={(e) => setNewAmenity({ ...newAmenity, category: e.target.value })}>
-                    <option value="General">General</option>
-                    <option value="Food">Food & Drink</option>
-                    <option value="Audio/Visual">Audio/Visual</option>
-                    <option value="Services">Services</option>
-                  </select>
-                </div>
-                <div className="admin-form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
-                  <button type="submit" className="btn-primary" style={{ width: '100%' }}>{t.addAmenity}</button>
-                </div>
-              </form>
-            </div>
-
-            <div className="glass" style={{ padding: '2rem' }}>
-              <h3>Current {t.adminAmenities}</h3>
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>{t.amenityName}</th>
-                    <th>{t.amenityCategory}</th>
-                    <th>{t.actions}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {amenities.map(amenity => (
-                    <tr key={amenity.id}>
-                      <td>{amenity.name}</td>
-                      <td>{amenity.category}</td>
-                      <td>
-                        <button style={{ color: '#ff4d4d', fontSize: '0.8rem' }} onClick={async () => {
-                          if (window.confirm("Delete?")) await deleteDoc(doc(db, "amenities", amenity.id));
-                        }}>Delete</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {adminActiveTab === 'employees' && (
-          <div className="fade-in-up">
-            <div className="glass" style={{ padding: '2rem', marginBottom: '2rem' }}>
-              <h3>{t.addEmployee}</h3>
-              <form onSubmit={handleAddEmployee} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '1.5rem' }}>
-                <div className="admin-form-group">
-                  <label>{t.empName}</label>
-                  <input className="admin-input" value={newEmployee.name} onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })} required placeholder="John Doe" />
-                </div>
-                <div className="admin-form-group">
-                  <label>{t.empRole}</label>
-                  <input className="admin-input" value={newEmployee.role} onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value })} required placeholder="E.g. Chef" />
-                </div>
-                <div className="admin-form-group">
-                  <label>{t.empShift}</label>
-                  <select className="admin-input" value={newEmployee.shift} onChange={(e) => setNewEmployee({ ...newEmployee, shift: e.target.value })}>
-                    <option value="Morning">Morning</option>
-                    <option value="Afternoon">Afternoon</option>
-                    <option value="Night">Night</option>
-                    <option value="Full-time">Full-time</option>
-                  </select>
-                </div>
-                <div className="admin-form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
-                  <button type="submit" className="btn-primary" style={{ width: '100%' }}>{t.addEmployee}</button>
-                </div>
-              </form>
-            </div>
-
-            <div className="glass" style={{ padding: '2rem' }}>
-              <h3>{t.adminEmployees}</h3>
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>{t.empName}</th>
-                    <th>{t.empRole}</th>
-                    <th>{t.empShift}</th>
-                    <th>{t.status}</th>
-                    <th>{t.actions}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {employees.map(emp => (
-                    <tr key={emp.id}>
-                      <td>{emp.name}</td>
-                      <td>{emp.role}</td>
-                      <td>{emp.shift}</td>
-                      <td><span className="status-badge status-confirmed">{emp.status}</span></td>
-                      <td>
-                        <button onClick={() => handleRemoveEmployee(emp.id)} style={{ color: '#ff4d4d', fontSize: '0.8rem', cursor: 'pointer' }}>Remove</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {adminActiveTab === 'analytics' && (
-          <div className="fade-in-up">
-            <div className="card-grid">
-              <div className="card glass">
-                <h4 style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '0.8rem' }}>Total {t.revenue} (YTD)</h4>
-                <div style={{ fontSize: '2.5rem', fontWeight: '700', color: 'var(--accent-gold)' }}>$82,200</div>
-                <p style={{ color: 'var(--accent-blue)', fontSize: '0.8rem' }}>+12% from last year</p>
-              </div>
-              <div className="card glass">
-                <h4 style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '0.8rem' }}>Total {t.adminReservations}</h4>
-                <div style={{ fontSize: '2.5rem', fontWeight: '700', color: 'var(--accent-gold)' }}>105</div>
-                <p style={{ color: 'var(--accent-blue)', fontSize: '0.8rem' }}>Avg. 15 events/month</p>
-              </div>
-              <div className="card glass">
-                <h4 style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '0.8rem' }}>Client Satisfaction</h4>
-                <div style={{ fontSize: '2.5rem', fontWeight: '700', color: 'var(--accent-gold)' }}>4.9/5</div>
-                <p style={{ color: 'var(--accent-blue)', fontSize: '0.8rem' }}>Based on 80 reviews</p>
-              </div>
-            </div>
-
-            <div className="glass" style={{ marginTop: '2rem', padding: '2rem' }}>
-              <h3>{t.trends}</h3>
-              <div style={{ marginTop: '2rem', height: '200px', display: 'flex', alignItems: 'flex-end', gap: '5%', padding: '0 2rem' }}>
-                {analyticsData.map(data => (
-                  <div key={data.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
-                    <div style={{
-                      width: '100%',
-                      background: 'linear-gradient(to top, var(--accent-gold), transparent)',
-                      height: `${(data.revenue / 20000) * 100}%`,
-                      borderRadius: '4px 4px 0 0',
-                      position: 'relative'
-                    }}>
-                      <span style={{ position: 'absolute', top: '-25px', left: '50%', transform: 'translateX(-50%)', fontSize: '0.7rem', color: 'var(--accent-gold)' }}>${data.revenue}</span>
-                    </div>
-                    <span style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{data.month}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="glass" style={{ marginTop: '2rem', padding: '2rem' }}>
-              <h3>{t.historical}</h3>
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Month</th>
-                    <th>{t.revenue}</th>
-                    <th>{t.adminReservations}</th>
-                    <th>Avg. Guest Count</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {analyticsData.slice().reverse().map(data => (
-                    <tr key={data.month}>
-                      <td>{data.month}</td>
-                      <td style={{ color: 'var(--accent-gold)', fontWeight: '600' }}>${data.revenue}</td>
-                      <td>{data.bookings}</td>
-                      <td>{Math.round(data.revenue / (data.bookings * 10))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div className="glass fade-in-up" style={{ padding: '2rem' }}>
+            <h3>{t.adminAmenities}</h3>
+            <div style={{ marginTop: '1.5rem' }}>
+              {amenities.map(a => <span key={a.id} className="amenity-pill">{a.name}</span>)}
             </div>
           </div>
         )}
 
         {adminActiveTab === 'chats' && (
-          <div className="fade-in-up glass" style={{ padding: '2rem' }}>
+          <div className="glass fade-in-up" style={{ padding: '2rem' }}>
             <h3>{t.adminChats}</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '1.5rem', marginTop: '1.5rem', height: '500px' }}>
-              <div style={{ borderRight: '1px solid #ffffff10', overflowY: 'auto' }}>
-                <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-                  <strong>{t.chatWithUs}</strong>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    {chatMessages.length > 0 ? chatMessages[chatMessages.length - 1].text.substring(0, 30) + '...' : 'No messages yet'}
-                  </p>
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={{ flex: 1, padding: '1rem', overflowY: 'auto' }}>
-                  {chatMessages.map(m => (
-                    <div key={m.id} className={`msg ${m.sender === 'staff' ? 'msg-user' : 'msg-staff'}`} style={{ marginBottom: '1rem', alignSelf: m.sender === 'staff' ? 'flex-end' : 'flex-start' }}>
-                      {m.text}
-                      <div style={{ fontSize: '0.6rem', marginTop: '0.3rem', opacity: 0.7 }}>{m.timestamp?.toDate ? m.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now'}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ padding: '1rem', display: 'flex', gap: '0.5rem' }}>
-                  <input className="admin-input" placeholder="Type reply..." value={currentMsg} onChange={(e) => setCurrentMsg(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage('staff')} />
-                  <button className="btn-primary" onClick={() => handleSendMessage('staff')}>Send</button>
-                </div>
-              </div>
-            </div>
+            <p>Chat system active. Responses appear in guest portal.</p>
           </div>
         )}
       </section>
@@ -1213,8 +1071,18 @@ const App = () => {
         </div>
         <div className="nav-links">
           <a href="#venue" className="nav-link" onClick={() => setView('home')}>{t.navVenue}</a>
-          <a href="#" className="nav-link" onClick={() => setView('home')}>{t.navRestaurant}</a>
+          <a href="#restaurant" className="nav-link" onClick={() => setView('home')}>{t.navRestaurant}</a>
           <button className="btn-secondary" style={{ padding: '0.5rem 1rem' }} onClick={() => setView('booking')}>{t.navBooking}</button>
+          
+          {user ? (
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button className="nav-link" onClick={() => setView('home')} style={{ color: 'var(--accent-gold)' }}>My Stays</button>
+              <button className="nav-link" onClick={() => auth.signOut()} style={{ fontSize: '0.7rem' }}>Sign Out</button>
+            </div>
+          ) : (
+            <button className="nav-link" onClick={() => setView('booking')} style={{ fontSize: '0.8rem' }}>Guest Login</button>
+          )}
+
           <button className="nav-link" onClick={() => setView('admin')} style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{t.navAdmin}</button>
           <button className="lang-toggle" onClick={() => setLang(lang === 'en' ? 'fr' : 'en')}>
             {lang.toUpperCase()}
