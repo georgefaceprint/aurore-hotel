@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import './index.css';
-import { db } from './firebase';
+import { db, storage } from './firebase';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, doc, deleteDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const translations = {
   en: {
@@ -62,6 +63,8 @@ const translations = {
     price: "Price",
     availability: "Availability",
     selectAmenities: "Select Amenities",
+    roomNumber: "Room Number / ID",
+    uploadPhotos: "Upload Images",
     villasAndRooms: "Our Suites & Villas",
     chatWithUs: "Converser avec la Maison",
     typeMessage: "Your message...",
@@ -136,6 +139,8 @@ const translations = {
     price: "Prix",
     availability: "Disponibilité",
     selectAmenities: "Sélectionner Équipements",
+    roomNumber: "N° de Chambre / ID",
+    uploadPhotos: "Télécharger Photos",
     villasAndRooms: "Nos Suites & Villas",
     chatWithUs: "Converser avec la Maison",
     typeMessage: "Votre message...",
@@ -186,8 +191,9 @@ const App = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [reservations, setReservations] = useState([]);
 
-  const [newRoom, setNewRoom] = useState({ name: '', price: '', capacity: '', type: 'Room', amenities: [], images: '' });
+  const [newRoom, setNewRoom] = useState({ name: '', number: '', price: '', capacity: '', type: 'Room', amenities: [], images: '' });
   const [editingRoomId, setEditingRoomId] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [newAmenity, setNewAmenity] = useState({ name: '', category: 'General' });
 
   // Chat State
@@ -591,12 +597,37 @@ const App = () => {
     }
   };
 
+  const handleImageUpload = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    setUploading(true);
+    try {
+      const uploadedUrls = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const storageRef = ref(storage, `rooms/${Date.now()}_${file.name}`);
+        const snapshot = await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(snapshot.ref);
+        uploadedUrls.push(url);
+      }
+      const currentImages = newRoom.images ? newRoom.images.split(',') : [];
+      setNewRoom({ ...newRoom, images: [...currentImages, ...uploadedUrls].filter(u => u).join(',') });
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert("Failed to upload image. Please check your storage rules.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleEditRoom = (room) => {
     setNewRoom({
       name: room.name,
-      price: room.price.toString(),
-      capacity: room.capacity.toString(),
-      type: room.type,
+      number: room.number || '',
+      price: room.price ? room.price.toString() : '',
+      capacity: room.capacity ? room.capacity.toString() : '',
+      type: room.type || 'Room',
       amenities: room.amenities || [],
       images: room.images || ''
     });
@@ -799,6 +830,10 @@ const App = () => {
                   <input type="number" className="admin-input" value={newRoom.capacity} onChange={(e) => setNewRoom({ ...newRoom, capacity: e.target.value })} required placeholder="E.g. 50" />
                 </div>
                 <div className="admin-form-group">
+                  <label>{t.roomNumber}</label>
+                  <input className="admin-input" value={newRoom.number} onChange={(e) => setNewRoom({ ...newRoom, number: e.target.value })} placeholder="E.g. #101" />
+                </div>
+                <div className="admin-form-group">
                   <label>{t.roomType}</label>
                   <select className="admin-input" value={newRoom.type} onChange={(e) => setNewRoom({ ...newRoom, type: e.target.value })}>
                     <option value="Venue">Venue</option>
@@ -809,8 +844,31 @@ const App = () => {
                   </select>
                 </div>
                 <div className="admin-form-group" style={{ gridColumn: '1 / -1' }}>
-                  <label>{t.roomImages}</label>
-                  <input className="admin-input" value={newRoom.images} onChange={(e) => setNewRoom({ ...newRoom, images: e.target.value })} placeholder="https://example.com/img1.jpg, https://example.com/img2.jpg" />
+                  <label>{t.roomImages} (Manual URL or Upload)</label>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <input className="admin-input" style={{ flex: 1, marginTop: 0 }} value={newRoom.images} onChange={(e) => setNewRoom({ ...newRoom, images: e.target.value })} placeholder="URLs separated by comma" />
+                    <label className="btn-secondary" style={{ padding: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                      {uploading ? '...' : t.uploadPhotos}
+                      <input type="file" multiple accept="image/*" onChange={handleImageUpload} hidden disabled={uploading} />
+                    </label>
+                  </div>
+                  {newRoom.images && (
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {newRoom.images.split(',').map((img, i) => (
+                        <div key={i} style={{ position: 'relative' }}>
+                          <img src={img.trim()} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '4px' }} alt="Preview" />
+                          <button 
+                            type="button" 
+                            style={{ position: 'absolute', top: -5, right: -5, background: '#ff4d4d', color: 'white', borderRadius: '50%', width: '18px', height: '18px', fontSize: '10px' }}
+                            onClick={() => {
+                              const remain = newRoom.images.split(',').filter((_, idx) => idx !== i);
+                              setNewRoom({ ...newRoom, images: remain.join(',') });
+                            }}
+                          >✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="admin-form-group" style={{ gridColumn: '1 / -1' }}>
                   <label>{t.selectAmenities}</label>
@@ -854,7 +912,10 @@ const App = () => {
                 <tbody>
                   {rooms.map(room => (
                     <tr key={room.id}>
-                      <td>{room.name}</td>
+                      <td>
+                        <strong>{room.name}</strong>
+                        {room.number && <span style={{ color: 'var(--accent-gold)', marginLeft: '0.5rem' }}>{room.number}</span>}
+                      </td>
                       <td>${room.price}</td>
                       <td>
                         <button onClick={() => toggleRoomAvailability(room.id, room.isAvailable)} className={`status-badge ${room.isAvailable ? 'status-confirmed' : 'status-pending'}`} style={{ cursor: 'pointer' }}>
