@@ -68,7 +68,12 @@ const translations = {
     night: "night",
     reserved: "RESERVED",
     viewDetails: "View Photos",
-    roomImages: "Room Photos (comma separated URLs)"
+    roomImages: "Room Photos (comma separated URLs)",
+    searchAvail: "Search Availability",
+    adults: "Adults",
+    children: "Children",
+    checkIn: "Check-In",
+    checkOut: "Check-Out"
   },
   fr: {
     heroTitle: "Hôtel & Résidence Aurore Ecce",
@@ -134,7 +139,12 @@ const translations = {
     night: "nuit",
     reserved: "RÉSERVÉ",
     viewDetails: "Voir Photos",
-    roomImages: "Photos de la chambre (liens séparés par des virgules)"
+    roomImages: "Photos de la chambre (liens séparés par des virgules)",
+    searchAvail: "Vérifier la Disponibilité",
+    adults: "Adultes",
+    children: "Enfants",
+    checkIn: "Arrivée",
+    checkOut: "Départ"
   }
 };
 
@@ -148,7 +158,9 @@ const App = () => {
     roomId: '',
     checkIn: '',
     checkOut: '',
-    guests: '2'
+    guests: '2',
+    adults: '2',
+    children: '0'
   });
   const [bookingStatus, setBookingStatus] = useState(null);
 
@@ -226,9 +238,11 @@ const App = () => {
         roomName: room?.name || 'N/A',
         checkIn: bookingFormData.checkIn,
         checkOut: bookingFormData.checkOut,
+        adults: bookingFormData.adults,
+        children: bookingFormData.children,
         type: bookingFormData.type || 'Stay',
         status: 'pending',
-        guests: bookingFormData.guests,
+        guests: (parseInt(bookingFormData.adults) + parseInt(bookingFormData.children)).toString(),
         createdAt: serverTimestamp()
       };
       
@@ -238,7 +252,7 @@ const App = () => {
       setTimeout(() => {
         setBookingStatus(null);
         setView('home');
-        setBookingFormData({ name: '', email: '', roomId: '', checkIn: '', checkOut: '', guests: '2' });
+        setBookingFormData({ name: '', email: '', roomId: '', checkIn: '', checkOut: '', guests: '2', adults: '2', children: '0' });
       }, 3000);
     } catch (error) {
       console.error("Error booking room:", error);
@@ -277,37 +291,79 @@ const App = () => {
         <div className="app-container fade-in-up">
           <h1>{t.heroTitle}</h1>
           <p>{t.heroSub}</p>
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-            <button className="btn-primary" onClick={() => setView('booking')}>{t.bookBtn}</button>
-            <button className="btn-secondary">{t.orderBtn}</button>
+          <div className="booking-bar-hero glass fade-in-up">
+            <div className="bar-item">
+              <label>{t.checkIn}</label>
+              <input type="date" value={bookingFormData.checkIn} onChange={(e) => setBookingFormData({...bookingFormData, checkIn: e.target.value})} />
+            </div>
+            <div className="bar-item">
+              <label>{t.checkOut}</label>
+              <input type="date" value={bookingFormData.checkOut} onChange={(e) => setBookingFormData({...bookingFormData, checkOut: e.target.value})} />
+            </div>
+            <div className="bar-item">
+              <label>{t.adults}</label>
+              <select value={bookingFormData.adults} onChange={(e) => setBookingFormData({...bookingFormData, adults: e.target.value})}>
+                <option value="1">1 Adult</option>
+                <option value="2">2 Adults</option>
+                <option value="3">3 Adults</option>
+                <option value="4">4 Adults</option>
+              </select>
+            </div>
+            <div className="bar-item">
+              <label>{t.children}</label>
+              <select value={bookingFormData.children} onChange={(e) => setBookingFormData({...bookingFormData, children: e.target.value})}>
+                <option value="0">0 Children</option>
+                <option value="1">1 Child</option>
+                <option value="2">2 Children</option>
+              </select>
+            </div>
+            <button className="btn-primary" style={{ padding: '1rem 2rem' }} onClick={() => {
+              document.getElementById('accommodation')?.scrollIntoView({ behavior: 'smooth' });
+            }}>{t.searchAvail}</button>
           </div>
         </div>
       </section>
 
       <section id="accommodation" className="app-container">
-        <h2 style={{ textAlign: 'center', marginBottom: '1rem' }}>Luxury Accommodations</h2>
-        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', maxWidth: '700px', margin: '0 auto 3rem' }}>Experience the ultimate comfort in our premium hotel rooms and villas.</p>
-        <div className="card-grid">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2rem' }}>
+          <div>
+            <h2>{t.villasAndRooms}</h2>
+            <p style={{ color: 'var(--text-secondary)' }}>Available stays for your selected dates</p>
+          </div>
+          <div style={{ fontSize: '0.9rem', color: 'var(--accent-gold)' }}>
+            {rooms.filter(r => r.type === 'Room' || r.type === 'Villa').length} properties found
+          </div>
+        </div>
+        
+        <div className="listing-grid">
           {rooms.filter(r => r.type === 'Room' || r.type === 'Villa').map(room => (
-            <div className="card" key={room.id}>
-              <div style={{ position: 'relative' }}>
-                <img src={room.images ? room.images.split(',')[0] : room.image} alt={room.name} />
+            <div className="listing-item glass fade-in-up" key={room.id}>
+              <div className="listing-img-container">
+                <img src={room.images ? room.images.split(',')[0] : room.image} alt={room.name} onClick={() => setSelectedRoom(room)} style={{ cursor: 'pointer' }} />
                 <span className={`availability-badge ${room.isAvailable ? 'available' : 'booked'}`}>
                   {room.isAvailable ? t.available : t.reserved}
                 </span>
               </div>
-              <h3>{room.name}</h3>
-              <div className="price-tag">${room.price} <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>/ {t.night}</span></div>
-              <p style={{ fontSize: '0.9rem', marginBottom: '1rem' }}>{t.roomCapacity}: {room.capacity} Guests</p>
-              <div style={{ marginBottom: '1.5rem', minHeight: '60px' }}>
-                {room.amenities.slice(0, 3).map(a => <span key={a} className="amenity-pill">{a}</span>)}
-                {room.amenities.length > 3 && <span className="amenity-pill">+{room.amenities.length - 3}</span>}
+              <div className="listing-details">
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <h3>{room.name}</h3>
+                  <div className="rating-badge">9.8</div>
+                </div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--accent-blue)', marginBottom: '0.5rem' }}>✨ Premium Choice</p>
+                <div className="listing-amenities-short">
+                  {room.amenities.slice(0, 5).map(a => <span key={a} className="amenity-inline"> • {a}</span>)}
+                </div>
+                <p style={{ fontSize: '0.9rem', marginTop: '1rem', color: 'var(--text-secondary)' }}>{t.roomCapacity}: {room.capacity} Guests</p>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button className="btn-secondary" style={{ flex: 1, padding: '0.6rem' }} onClick={() => setSelectedRoom(room)}>{t.viewDetails}</button>
+              <div className="listing-cta">
+                <div className="price-box">
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t.night}</span>
+                  <div className="price-tag">${room.price}</div>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--accent-blue)' }}>Includes taxes & fees</span>
+                </div>
                 <button
                   className="btn-primary"
-                  style={{ flex: 1, padding: '0.6rem' }}
+                  style={{ width: '100%', marginBottom: '0.5rem' }}
                   disabled={!room.isAvailable}
                   onClick={() => {
                     setBookingFormData({ ...bookingFormData, roomId: room.id, type: room.type });
@@ -316,6 +372,7 @@ const App = () => {
                 >
                   {t.bookBtn}
                 </button>
+                <button className="btn-secondary" style={{ width: '100%', fontSize: '0.8rem', padding: '0.5rem' }} onClick={() => setSelectedRoom(room)}>{t.viewDetails}</button>
               </div>
             </div>
           ))}
