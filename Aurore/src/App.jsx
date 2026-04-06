@@ -912,41 +912,50 @@ const App = () => {
   };
 
   const handleSeedData = async () => {
-    if (rooms.length === 0) {
-      alert('Please add at least one space before seeding bookings.');
-      return;
-    }
-    if (!window.confirm('Seed 20 mock reservations for the last 5 days?')) return;
+    try {
+      console.log('Seeding data started. Rooms available:', rooms.length);
+      if (rooms.length === 0) {
+        alert('Please add at least one space in the "Spaces" tab before seeding demo bookings.');
+        return;
+      }
+      if (!window.confirm('Seed 20 mock reservations for the last 5 days?')) return;
 
-    const firstNames = ['Jean', 'Marie', 'Marc', 'Alice', 'David', 'Sophie', 'Paul', 'Emma', 'Luc', 'Fatima'];
-    const lastNames = ['Mukendi', 'Kabila', 'Lumumba', 'Tshisekedi', 'Ngoy', 'Ilunga', 'Kasongo'];
-    const statuses = ['pending', 'confirmed', 'checked-in'];
-    const promises = [];
+      const firstNames = ['Jean', 'Marie', 'Marc', 'Alice', 'David', 'Sophie', 'Paul', 'Emma', 'Luc', 'Fatima'];
+      const lastNames = ['Mukendi', 'Kabila', 'Lumumba', 'Tshisekedi', 'Ngoy', 'Ilunga', 'Kasongo'];
+      const statuses = ['pending', 'confirmed', 'checked-in'];
+      const promises = [];
 
-    for (let i = 0; i < 20; i++) {
-      const room = rooms[Math.floor(Math.random() * rooms.length)];
-      const date = new Date();
-      date.setDate(date.getDate() - Math.floor(Math.random() * 5));
-      promises.push(
-        addDoc(collection(db, 'reservations'), {
+      for (let i = 0; i < 20; i++) {
+        const room = rooms[Math.floor(Math.random() * rooms.length)];
+        const date = new Date();
+        date.setDate(date.getDate() - Math.floor(Math.random() * 5));
+        
+        const resData = {
           firstName: firstNames[Math.floor(Math.random() * firstNames.length)],
           lastName: lastNames[Math.floor(Math.random() * lastNames.length)],
           email: 'guest@example.com',
           phone: '81 234 5678',
           country: '+243',
-          roomId: room.id,
-          roomName: room.name,
+          roomId: room.id || 'unknown',
+          roomName: room.name || 'Unknown Space',
           checkIn: date.toISOString().split('T')[0],
           checkOut: new Date(date.getTime() + 86400000 * 2).toISOString().split('T')[0],
           adults: '2',
           children: '1',
           status: statuses[Math.floor(Math.random() * statuses.length)],
           createdAt: serverTimestamp()
-        })
-      );
+        };
+        
+        promises.push(addDoc(collection(db, 'reservations'), resData));
+      }
+      
+      await Promise.all(promises);
+      console.log('Successfully seeded 20 reservations');
+      alert('✅ 20 Demo Reservations Seeded!');
+    } catch (err) {
+      console.error('Seed Error:', err);
+      alert('❌ FAILED to seed data: ' + (err.message || 'Unknown error'));
     }
-    await Promise.all(promises);
-    alert('✅ 20 Demo Reservations Seeded!');
   };
 
   const renderAdmin = () => {
