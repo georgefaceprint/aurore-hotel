@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import './index.css';
 import { db, storage, auth } from './firebase';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, doc, deleteDoc, where } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, doc, deleteDoc, where, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, signInWithEmailAndPassword } from 'firebase/auth';
+import emailjs from '@emailjs/browser';
 
 const translations = {
   en: {
@@ -186,7 +187,7 @@ const App = () => {
     lastName: '', 
     email: '', 
     phone: '', 
-    country: 'Democratic Republic of the Congo (+243)',
+    country: '+243',
     roomId: '', 
     type: 'Room', 
     checkIn: '', 
@@ -253,9 +254,11 @@ const App = () => {
     const unsubEmployees = syncData("employees", setEmployees, "name");
     const unsubMessages = syncData("messages", setChatMessages, "timestamp");
 
+    const unsubAuth = onAuthStateChanged(auth, (u) => setUser(u));
+
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      unsub();
+      unsubAuth();
       unsubReservations();
       unsubRooms();
       unsubAmenities();
@@ -285,7 +288,32 @@ const App = () => {
       setBookingStep('summary');
       return;
     }
-    
+
+    // Double-booking check
+    try {
+      const conflictQuery = query(
+        collection(db, 'reservations'),
+        where('roomId', '==', bookingFormData.roomId),
+        where('status', 'in', ['pending', 'confirmed', 'checked-in'])
+      );
+      const existing = await getDocs(conflictQuery);
+      const hasConflict = existing.docs.some(d => {
+        const r = d.data();
+        const reqIn = new Date(bookingFormData.checkIn);
+        const reqOut = new Date(bookingFormData.checkOut);
+        const exIn = new Date(r.checkIn);
+        const exOut = new Date(r.checkOut);
+        return reqIn < exOut && reqOut > exIn;
+      });
+      if (hasConflict) {
+        alert('⚠️ Sorry — this space is already reserved for your selected dates. Please choose different dates or another space.');
+        setBookingStep('details');
+        return;
+      }
+    } catch (err) {
+      console.error('Conflict check failed:', err);
+    }
+
     try {
       const room = rooms.find(r => r.id === bookingFormData.roomId);
       const newReservation = {
@@ -295,29 +323,63 @@ const App = () => {
         status: 'pending',
         createdAt: serverTimestamp()
       };
-      
-      await addDoc(collection(db, "reservations"), newReservation);
+      await addDoc(collection(db, 'reservations'), newReservation);
+
+      // 📧 Send confirmation email via EmailJS
+      try {
+        await emailjs.send(
+          import.meta.env.VITE_EMAILJS_SERVICE_ID || 'service_aurore',
+          import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'template_aurore',
+          {
+            to_name: `${bookingFormData.firstName} ${bookingFormData.lastName}`,
+            to_email: bookingFormData.email,
+            room_name: room?.name || 'Selected Space',
+            check_in: bookingFormData.checkIn,
+            check_out: bookingFormData.checkOut,
+            phone: `${bookingFormData.country} ${bookingFormData.phone}`,
+            total_price: `$${total}`,
+            reply_to: 'contact@auroreecce.cd',
+          },
+          import.meta.env.VITE_EMAILJS_PUBLIC_KEY || ''
+        );
+      } catch (emailErr) {
+        console.warn('Email send failed (check EmailJS config):', emailErr);
+      }
       setBookingStatus('success');
       setBookingStep('details');
       setTimeout(() => {
         setBookingStatus(null);
         setView('home');
-        setBookingFormData({ firstName: '', lastName: '', email: '', phone: '', country: 'Democratic Republic of the Congo (+243)', roomId: '', type: 'Room', checkIn: '', checkOut: '', adults: '1', children: '0' });
+        setBookingFormData({ firstName: '', lastName: '', email: '', phone: '', country: '+243', roomId: '', type: 'Room', checkIn: '', checkOut: '', adults: '1', children: '0' });
       }, 3000);
     } catch (error) {
-      console.error("Error booking room:", error);
-      alert("Booking failed. Please try again.");
+      console.error('Error booking room:', error);
+      alert('Booking failed. Please try again.');
     }
   };
 
-  const handleLogin = (e) => {
+  const ADMIN_EMAIL = 'faceprint@icloud.com';
+
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (adminCredentials.email === 'faceprint@icloud.com' && adminCredentials.password === 'Jethro@#1973') {
-      setIsAdminLoggedIn(true);
-      setLoginError(false);
-    } else {
+    setLoginError(false);
+    try {
+      const result = await signInWithEmailAndPassword(auth, adminCredentials.email, adminCredentials.password);
+      if (result.user.email === ADMIN_EMAIL) {
+        setIsAdminLoggedIn(true);
+      } else {
+        await signOut(auth);
+        setLoginError(true);
+      }
+    } catch (error) {
+      console.error('Admin login error:', error);
       setLoginError(true);
     }
+  };
+
+  const handleAdminLogout = async () => {
+    await signOut(auth);
+    setIsAdminLoggedIn(false);
   };
 
   const handleSendMessage = async (sender = 'user') => {
@@ -546,7 +608,20 @@ const App = () => {
       <section className="app-container" style={{ paddingBottom: '5rem', paddingTop: '8rem' }}>
         <h2 style={{ textAlign: 'center', marginBottom: '3rem' }}>{t.navBooking}</h2>
         <form onSubmit={handleBookingSubmit} className="glass fade-in-up" style={{ maxWidth: '700px', margin: '0 auto', padding: '3rem' }}>
-          
+
+          {/* 💰 Cash Payment Policy Banner */}
+          <div style={{ marginBottom: '2rem', padding: '1.2rem 1.5rem', background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', border: '1px solid #f59e0b', borderRadius: '10px', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '1.6rem', flexShrink: 0 }}>💵</span>
+            <div>
+              <strong style={{ color: '#92400e', display: 'block', marginBottom: '0.4rem', fontSize: '0.95rem' }}>Cash Payment Policy — Please Read</strong>
+              <p style={{ fontSize: '0.82rem', color: '#78350f', lineHeight: 1.6, margin: 0 }}>
+                Reservations at Aurore Ecce are <strong>confirmed only upon receipt of cash payment</strong> at our reception. Submitting this form holds your <em>request</em>, but <strong>does not guarantee your space</strong>. A paying customer may claim the space before your payment is received.
+                <br /><br />
+                🕐 <strong>First come, first served.</strong> Contact us to secure your spot quickly: <strong>+243 ...</strong>
+              </p>
+            </div>
+          </div>
+
           {bookingStep === 'details' ? (
             <>
               {!user && (
@@ -597,17 +672,58 @@ const App = () => {
 
               <div style={{ marginBottom: '1.5rem' }}>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formPhone} *</label>
-                <input type="tel" required className="admin-input" style={{ width: '100%', marginTop: 0 }} value={bookingFormData.phone} onChange={(e) => setBookingFormData({ ...bookingFormData, phone: e.target.value })} placeholder="Ex: 81 234 5678" />
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <select
+                    className="admin-input"
+                    style={{ width: '180px', flexShrink: 0, marginTop: 0 }}
+                    value={bookingFormData.country}
+                    onChange={(e) => setBookingFormData({ ...bookingFormData, country: e.target.value })}
+                  >
+                    <option value="+243">🇨🇩 DRC +243</option>
+                    <option value="+260">🇿🇲 Zambia +260</option>
+                    <option value="+32">🇧🇪 Belgium +32</option>
+                    <option value="+33">🇫🇷 France +33</option>
+                    <option value="+1">🇺🇸 USA +1</option>
+                    <option value="+254">🇰🇪 Kenya +254</option>
+                    <option value="+27">🇿🇦 S. Africa +27</option>
+                  </select>
+                  <input
+                    type="tel"
+                    required
+                    className="admin-input"
+                    style={{ flex: 1, marginTop: 0 }}
+                    value={bookingFormData.phone}
+                    onChange={(e) => setBookingFormData({ ...bookingFormData, phone: e.target.value })}
+                    placeholder="81 234 5678"
+                  />
+                </div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.3rem', display: 'block' }}>Our team may call this number to confirm your reservation.</span>
               </div>
 
               <div style={{ marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formCheckIn}</label>
-                  <input type="date" required className="admin-input" style={{ width: '100%', marginTop: 0 }} value={bookingFormData.checkIn} onChange={(e) => setBookingFormData({ ...bookingFormData, checkIn: e.target.value })} />
+                  <input
+                    type="date"
+                    required
+                    min={new Date().toISOString().split('T')[0]}
+                    className="admin-input"
+                    style={{ width: '100%', marginTop: 0 }}
+                    value={bookingFormData.checkIn}
+                    onChange={(e) => setBookingFormData({ ...bookingFormData, checkIn: e.target.value, checkOut: '' })}
+                  />
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formCheckOut}</label>
-                  <input type="date" required className="admin-input" style={{ width: '100%', marginTop: 0 }} value={bookingFormData.checkOut} onChange={(e) => setBookingFormData({ ...bookingFormData, checkOut: e.target.value })} />
+                  <input
+                    type="date"
+                    required
+                    min={bookingFormData.checkIn || new Date().toISOString().split('T')[0]}
+                    className="admin-input"
+                    style={{ width: '100%', marginTop: 0 }}
+                    value={bookingFormData.checkOut}
+                    onChange={(e) => setBookingFormData({ ...bookingFormData, checkOut: e.target.value })}
+                  />
                 </div>
               </div>
               <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '1rem' }}>Review Summary</button>
@@ -633,9 +749,19 @@ const App = () => {
                   <span style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-gold)' }}>${total}</span>
                 </div>
               </div>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '2rem' }}>
-                By confirming, you agree to pay in cash once your reservation is officially confirmed by our office staff.
-              </p>
+              {/* Cash Policy Alert in Summary */}
+              <div style={{ marginBottom: '2rem', padding: '1.2rem 1.5rem', background: '#fff7ed', border: '2px solid #f97316', borderRadius: '10px' }}>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.6rem' }}>
+                  <span style={{ fontSize: '1.3rem' }}>⚠️</span>
+                  <strong style={{ color: '#9a3412', fontSize: '0.9rem' }}>Your spot is NOT yet guaranteed</strong>
+                </div>
+                <p style={{ fontSize: '0.82rem', color: '#7c2d12', lineHeight: 1.65, margin: 0 }}>
+                  This is a <strong>reservation request only</strong>. Your space will be officially held <strong>once cash payment is received</strong> at our front desk. Spaces operate on a <strong>first-come, first-served</strong> basis — a paying guest may take priority before your payment arrives.
+                </p>
+                <p style={{ fontSize: '0.82rem', color: '#9a3412', marginTop: '0.75rem', marginBottom: 0, fontWeight: 600 }}>
+                  Please visit or call us as soon as possible to secure your booking.
+                </p>
+              </div>
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => setBookingStep('details')}>Back to Edit</button>
                 <button type="submit" className="btn-primary" style={{ flex: 2 }}>{t.formSubmit}</button>
@@ -845,7 +971,7 @@ const App = () => {
           </div>
           <div style={{ display: 'flex', gap: '1rem' }}>
             <button className="btn-secondary" style={{ borderColor: 'var(--accent-gold)', color: 'var(--accent-gold)' }} onClick={handleSeedData}>Seed Demo Data</button>
-            <button className="btn-secondary" style={{ borderColor: '#ff4d4d', color: '#ff4d4d' }} onClick={() => setIsAdminLoggedIn(false)}>Logout</button>
+            <button className="btn-secondary" style={{ borderColor: '#ff4d4d', color: '#ff4d4d' }} onClick={handleAdminLogout}>Logout</button>
             <button className="btn-secondary" onClick={() => setView('home')}>{t.backHome}</button>
           </div>
         </div>
@@ -1098,9 +1224,113 @@ const App = () => {
 
       {renderRoomDetail()}
 
-      <footer>
+      <footer style={{ background: '#0f172a', color: '#e2e8f0', paddingTop: '4rem', paddingBottom: '2rem', marginTop: '4rem' }}>
         <div className="app-container">
-          <p>{t.footerText}</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '3rem', marginBottom: '3rem' }}>
+
+            {/* Brand */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                <img src="/assets/images/logo.png" alt="Logo" style={{ height: '40px', filter: 'brightness(0) invert(1)' }} />
+                <span style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.2rem', color: '#f1b43c', letterSpacing: '0.1em' }}>AURORE ECCE</span>
+              </div>
+              <p style={{ fontSize: '0.85rem', color: '#94a3b8', lineHeight: 1.7, marginBottom: '1.5rem' }}>
+                L'Excellence à Lubumbashi. Premier luxury venue, suites &amp; gastronomy. Est. 2020.
+              </p>
+              {/* Social Media */}
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                {[
+                  { icon: '📘', label: 'Facebook', href: 'https://facebook.com/auroreecce' },
+                  { icon: '📸', label: 'Instagram', href: 'https://instagram.com/auroreecce' },
+                  { icon: '💬', label: 'WhatsApp', href: 'https://wa.me/243000000000' },
+                  { icon: '🎵', label: 'TikTok', href: 'https://tiktok.com/@auroreecce' },
+                ].map(s => (
+                  <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer"
+                    title={s.label}
+                    style={{ width: '38px', height: '38px', background: 'rgba(255,255,255,0.08)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', textDecoration: 'none', transition: 'background 0.2s' }}
+                    onMouseOver={e => e.currentTarget.style.background = 'rgba(241,180,60,0.25)'}
+                    onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                  >{s.icon}</a>
+                ))}
+              </div>
+            </div>
+
+            {/* Contact */}
+            <div>
+              <h4 style={{ color: '#f1b43c', fontFamily: 'Playfair Display, serif', marginBottom: '1.2rem', fontSize: '1rem' }}>Contact &amp; Réservations</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', fontSize: '0.85rem', color: '#94a3b8' }}>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <span>📞</span>
+                  <div>
+                    <a href="tel:+243000000001" style={{ color: '#e2e8f0', textDecoration: 'none', display: 'block' }}>+243 000 000 001</a>
+                    <a href="tel:+243000000002" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: '0.8rem' }}>+243 000 000 002 (Alt)</a>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <span>💬</span>
+                  <a href="https://wa.me/243000000000" target="_blank" rel="noopener noreferrer" style={{ color: '#4ade80', textDecoration: 'none' }}>WhatsApp direct</a>
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <span>✉️</span>
+                  <a href="mailto:contact@auroreecce.cd" style={{ color: '#e2e8f0', textDecoration: 'none' }}>contact@auroreecce.cd</a>
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                  <span style={{ flexShrink: 0 }}>📍</span>
+                  <span>Avenue Lumumba, Lubumbashi, Haut-Katanga, DRC</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <span>⏰</span>
+                  <span>Réception: 24h/24 · 7j/7</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Links */}
+            <div>
+              <h4 style={{ color: '#f1b43c', fontFamily: 'Playfair Display, serif', marginBottom: '1.2rem', fontSize: '1rem' }}>Navigation</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {[
+                  { label: 'Nos Suites & Villas', anchor: '#accommodation' },
+                  { label: 'Halls de Prestige', anchor: '#venue' },
+                  { label: 'Le Restaurant', anchor: '#restaurant' },
+                  { label: 'Galerie des Événements', anchor: '#gallery' },
+                  { label: 'Réserver un Séjour', view: 'booking' },
+                ].map(l => (
+                  <a key={l.label}
+                    href={l.anchor || '#'}
+                    onClick={l.view ? (e) => { e.preventDefault(); setView(l.view); } : undefined}
+                    style={{ color: '#94a3b8', textDecoration: 'none', fontSize: '0.85rem', cursor: 'pointer', transition: 'color 0.2s' }}
+                    onMouseOver={e => e.currentTarget.style.color = '#f1b43c'}
+                    onMouseOut={e => e.currentTarget.style.color = '#94a3b8'}
+                  >{l.label}</a>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Map */}
+          <div style={{ borderRadius: '12px', overflow: 'hidden', marginBottom: '2.5rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <iframe
+              title="Aurore Ecce Location"
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d62869.87823695908!2d27.43391!3d-11.66079!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x19723f5b4e678c41%3A0x6c7b268babb0ac48!2sLubumbashi%2C%20Democratic%20Republic%20of%20the%20Congo!5e0!3m2!1sen!2sus!4v1700000000000!5m2!1sen!2sus"
+              width="100%"
+              height="260"
+              style={{ border: 0, display: 'block' }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
+
+          {/* Bottom bar */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>{t.footerText}</p>
+            <div style={{ display: 'flex', gap: '1.5rem' }}>
+              {['Privacy Policy', 'Terms', 'Cookie Policy'].map(l => (
+                <a key={l} href="#" style={{ fontSize: '0.75rem', color: '#64748b', textDecoration: 'none' }}>{l}</a>
+              ))}
+            </div>
+          </div>
         </div>
       </footer>
 
