@@ -968,7 +968,10 @@ const App = () => {
   };
 
   const renderAdmin = () => {
-    const revenue = reservations.reduce((acc, r) => acc + (rooms.find(rm => rm.id === r.roomId)?.price || 0), 0);
+    const revenue = reservations.reduce((acc, r) => {
+      const rm = rooms.find(room => room.id === r.roomId);
+      return acc + (rm?.price || 0);
+    }, 0);
     const confirmedCount = reservations.filter(r => r.status === 'confirmed' || r.status === 'checked-in').length;
 
     if (!isAdminLoggedIn) {
@@ -1302,7 +1305,7 @@ const App = () => {
         </div>
       </nav>
 
-      <main>
+      <main style={{ minHeight: '80vh' }}>
         {view === 'home' && renderHome()}
         {view === 'booking' && renderBooking()}
         {view === 'admin' && renderAdmin()}
@@ -1310,130 +1313,131 @@ const App = () => {
 
       {renderRoomDetail()}
 
-      <footer style={{ background: '#0f172a', color: '#e2e8f0', paddingTop: '4rem', paddingBottom: '2rem', marginTop: '4rem' }}>
-        <div className="app-container">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '3rem', marginBottom: '3rem' }}>
+      {view !== 'admin' && (
+        <footer style={{ background: '#0f172a', color: '#e2e8f0', paddingTop: '4rem', paddingBottom: '2rem', marginTop: '4rem' }}>
+          <div className="app-container">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '3rem', marginBottom: '3rem' }}>
 
-            {/* Brand */}
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                <img src="/assets/images/logo.png" alt="Logo" style={{ height: '40px', filter: 'brightness(0) invert(1)' }} />
-                <span style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.2rem', color: '#f1b43c', letterSpacing: '0.1em' }}>AURORE ECCE</span>
+              {/* Brand */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                  <img src="/assets/images/logo.png" alt="Logo" style={{ height: '40px', filter: 'brightness(0) invert(1)' }} />
+                  <span style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.2rem', color: '#f1b43c', letterSpacing: '0.1em' }}>AURORE ECCE</span>
+                </div>
+                <p style={{ fontSize: '0.85rem', color: '#94a3b8', lineHeight: 1.7, marginBottom: '1.5rem' }}>
+                  L'Excellence à Lubumbashi. Premier luxury venue, suites &amp; gastronomy. Est. 2020.
+                </p>
+                {/* Social Media */}
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  {[
+                    { icon: '📘', label: 'Facebook', href: 'https://facebook.com/auroreecce' },
+                    { icon: '📸', label: 'Instagram', href: 'https://instagram.com/auroreecce' },
+                    { icon: '💬', label: 'WhatsApp', href: 'https://wa.me/243000000000' },
+                    { icon: '🎵', label: 'TikTok', href: 'https://tiktok.com/@auroreecce' },
+                  ].map(s => (
+                    <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer"
+                      title={s.label}
+                      style={{ width: '38px', height: '38px', background: 'rgba(255,255,255,0.08)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', textDecoration: 'none', transition: 'background 0.2s' }}
+                      onMouseOver={e => e.currentTarget.style.background = 'rgba(241,180,60,0.25)'}
+                      onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                    >{s.icon}</a>
+                  ))}
+                </div>
               </div>
-              <p style={{ fontSize: '0.85rem', color: '#94a3b8', lineHeight: 1.7, marginBottom: '1.5rem' }}>
-                L'Excellence à Lubumbashi. Premier luxury venue, suites &amp; gastronomy. Est. 2020.
-              </p>
-              {/* Social Media */}
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                {[
-                  { icon: '📘', label: 'Facebook', href: 'https://facebook.com/auroreecce' },
-                  { icon: '📸', label: 'Instagram', href: 'https://instagram.com/auroreecce' },
-                  { icon: '💬', label: 'WhatsApp', href: 'https://wa.me/243000000000' },
-                  { icon: '🎵', label: 'TikTok', href: 'https://tiktok.com/@auroreecce' },
-                ].map(s => (
-                  <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer"
-                    title={s.label}
-                    style={{ width: '38px', height: '38px', background: 'rgba(255,255,255,0.08)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', textDecoration: 'none', transition: 'background 0.2s' }}
-                    onMouseOver={e => e.currentTarget.style.background = 'rgba(241,180,60,0.25)'}
-                    onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-                  >{s.icon}</a>
-                ))}
-              </div>
-            </div>
 
-            {/* Contact */}
-            <div>
-              <h4 style={{ color: '#f1b43c', fontFamily: 'Playfair Display, serif', marginBottom: '1.2rem', fontSize: '1rem' }}>Contact &amp; Réservations</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', fontSize: '0.85rem', color: '#94a3b8' }}>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                  <span>📞</span>
-                  <div>
-                    <a href="tel:+243000000001" style={{ color: '#e2e8f0', textDecoration: 'none', display: 'block' }}>+243 000 000 001</a>
-                    <a href="tel:+243000000002" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: '0.8rem' }}>+243 000 000 002 (Alt)</a>
+              {/* Contact */}
+              <div>
+                <h4 style={{ color: '#f1b43c', fontFamily: 'Playfair Display, serif', marginBottom: '1.2rem', fontSize: '1rem' }}>Contact &amp; Réservations</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', fontSize: '0.85rem', color: '#94a3b8' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                    <span>📞</span>
+                    <div>
+                      <a href="tel:+243000000001" style={{ color: '#e2e8f0', textDecoration: 'none', display: 'block' }}>+243 000 000 001</a>
+                      <a href="tel:+243000000002" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: '0.8rem' }}>+243 000 000 002 (Alt)</a>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                    <span>💬</span>
+                    <a href="https://wa.me/243000000000" target="_blank" rel="noopener noreferrer" style={{ color: '#4ade80', textDecoration: 'none' }}>WhatsApp direct</a>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                    <span>✉️</span>
+                    <a href="mailto:contact@auroreecce.cd" style={{ color: '#e2e8f0', textDecoration: 'none' }}>contact@auroreecce.cd</a>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                    <span style={{ flexShrink: 0 }}>📍</span>
+                    <span>Avenue Lumumba, Lubumbashi, Haut-Katanga, DRC</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                    <span>⏰</span>
+                    <span>Réception: 24h/24 · 7j/7</span>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                  <span>💬</span>
-                  <a href="https://wa.me/243000000000" target="_blank" rel="noopener noreferrer" style={{ color: '#4ade80', textDecoration: 'none' }}>WhatsApp direct</a>
-                </div>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                  <span>✉️</span>
-                  <a href="mailto:contact@auroreecce.cd" style={{ color: '#e2e8f0', textDecoration: 'none' }}>contact@auroreecce.cd</a>
-                </div>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                  <span style={{ flexShrink: 0 }}>📍</span>
-                  <span>Avenue Lumumba, Lubumbashi, Haut-Katanga, DRC</span>
-                </div>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                  <span>⏰</span>
-                  <span>Réception: 24h/24 · 7j/7</span>
+              </div>
+
+              {/* Navigation */}
+              <div>
+                <h4 style={{ color: '#f1b43c', fontFamily: 'Playfair Display, serif', marginBottom: '1.2rem', fontSize: '1rem' }}>Navigation</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  {[
+                    { label: 'Nos Suites & Villas', anchor: '#accommodation' },
+                    { label: 'Halls de Prestige', anchor: '#venue' },
+                    { label: 'Le Restaurant', anchor: '#restaurant' },
+                    { label: 'Galerie des Événements', anchor: '#gallery' },
+                    { label: 'Réserver un Séjour', view: 'booking' },
+                  ].map(l => (
+                    <a key={l.label}
+                      href={l.anchor || '#'}
+                      onClick={l.view ? (e) => { e.preventDefault(); setView(l.view); } : undefined}
+                      style={{ color: '#94a3b8', textDecoration: 'none', fontSize: '0.85rem', cursor: 'pointer', transition: 'color 0.2s' }}
+                      onMouseOver={e => e.currentTarget.style.color = '#f1b43c'}
+                      onMouseOut={e => e.currentTarget.style.color = '#94a3b8'}
+                    >{l.label}</a>
+                  ))}
                 </div>
               </div>
             </div>
 
-            {/* Quick Links */}
-            <div>
-              <h4 style={{ color: '#f1b43c', fontFamily: 'Playfair Display, serif', marginBottom: '1.2rem', fontSize: '1rem' }}>Navigation</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {[
-                  { label: 'Nos Suites & Villas', anchor: '#accommodation' },
-                  { label: 'Halls de Prestige', anchor: '#venue' },
-                  { label: 'Le Restaurant', anchor: '#restaurant' },
-                  { label: 'Galerie des Événements', anchor: '#gallery' },
-                  { label: 'Réserver un Séjour', view: 'booking' },
-                ].map(l => (
-                  <a key={l.label}
-                    href={l.anchor || '#'}
-                    onClick={l.view ? (e) => { e.preventDefault(); setView(l.view); } : undefined}
-                    style={{ color: '#94a3b8', textDecoration: 'none', fontSize: '0.85rem', cursor: 'pointer', transition: 'color 0.2s' }}
-                    onMouseOver={e => e.currentTarget.style.color = '#f1b43c'}
-                    onMouseOut={e => e.currentTarget.style.color = '#94a3b8'}
-                  >{l.label}</a>
+            {/* Map */}
+            <div style={{ borderRadius: '12px', overflow: 'hidden', marginBottom: '2.5rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <iframe
+                title="Aurore Ecce Location"
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d62869.87823695908!2d27.43391!3d-11.66079!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x19723f5b4e678c41%3A0x6c7b268babb0ac48!2sLubumbashi%2C%20Democratic%20Republic%20of%20the%20Congo!5e0!3m2!1sen!2sus!4v1700000000000!5m2!1sen!2sus"
+                width="100%"
+                height="260"
+                style={{ border: 0, display: 'block' }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            </div>
+
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+              <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>{t.footerText}</p>
+              <div style={{ display: 'flex', gap: '1.5rem' }}>
+                {['Privacy Policy', 'Terms', 'Cookie Policy'].map(l => (
+                  <a key={l} href="#" style={{ fontSize: '0.75rem', color: '#64748b', textDecoration: 'none' }}>{l}</a>
                 ))}
               </div>
             </div>
           </div>
+        </footer>
+      )}
 
-          {/* Map */}
-          <div style={{ borderRadius: '12px', overflow: 'hidden', marginBottom: '2.5rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <iframe
-              title="Aurore Ecce Location"
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d62869.87823695908!2d27.43391!3d-11.66079!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x19723f5b4e678c41%3A0x6c7b268babb0ac48!2sLubumbashi%2C%20Democratic%20Republic%20of%20the%20Congo!5e0!3m2!1sen!2sus!4v1700000000000!5m2!1sen!2sus"
-              width="100%"
-              height="260"
-              style={{ border: 0, display: 'block' }}
-              allowFullScreen
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-            />
-          </div>
-
-          {/* Bottom bar */}
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-            <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>{t.footerText}</p>
-            <div style={{ display: 'flex', gap: '1.5rem' }}>
-              {['Privacy Policy', 'Terms', 'Cookie Policy'].map(l => (
-                <a key={l} href="#" style={{ fontSize: '0.75rem', color: '#64748b', textDecoration: 'none' }}>{l}</a>
-              ))}
-            </div>
-          </div>
-        </div>
-      </footer>
-
-      {/* Floating Chat Widget */}
+      {/* Real-time Concierge Chat Widget */}
       <div className="chat-widget">
         {chatOpen && (
           <div className="chat-window glass fade-in-up">
             <div className="chat-header">
-              <span>{t.chatWithUs}</span>
-              <button onClick={() => setChatOpen(false)} style={{ color: 'white' }}>✕</button>
+              <span>{t.chatWithUs || "Aurore Concierge"}</span>
+              <button key="close-chat" onClick={() => setChatOpen(false)} style={{ color: 'white' }}>✕</button>
             </div>
             <div className="chat-body">
               {chatMessages
-                .filter(m => m.senderId === user?.uid || m.targetId === user?.uid)
+                .filter(m => (m.senderId === user?.uid || m.targetId === user?.uid))
                 .slice().reverse()
-                .map(m => (
-                <div key={m.id} className={`msg msg-${m.senderId === 'admin' ? 'admin' : 'guest'}`}>
+                .map((m, i) => (
+                <div key={i} className={`msg msg-${m.senderId === 'admin' ? 'admin' : 'guest'}`}>
                   {m.text}
                   <div style={{ fontSize: '0.6rem', marginTop: '0.2rem', opacity: 0.7 }}>{m.timestamp?.toDate ? m.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now'}</div>
                 </div>
@@ -1448,16 +1452,15 @@ const App = () => {
                 onChange={(e) => setCurrentMsg(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
               />
-              <button className="btn-primary" style={{ padding: '0.5rem' }} onClick={handleSendMessage}>➤</button>
+              <button key="send-chat" className="btn-primary" style={{ padding: '0.5rem' }} onClick={handleSendMessage}>➤</button>
             </div>
           </div>
         )}
-        <button className="chat-btn" key="chat-toggle" onClick={() => setChatOpen(!chatOpen)}>
-          {chatOpen ? '✕' : '💬'}
+        <button className="chat-toggle-btn" key="chat-toggle" onClick={() => setChatOpen(!chatOpen)}>
+          <span>💬</span>
+          <span style={{ fontSize: '0.7rem' }}> concierge</span>
         </button>
       </div>
-
-      {renderHome()}
     </div>
   );
 };
