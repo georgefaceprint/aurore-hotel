@@ -1,11 +1,107 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { calculateCompleteness } from '@/lib/utils';
 
 export default function ConnectPage() {
+    const { data: session } = useSession();
     const [search, setSearch] = useState({ name: '', surname: '', tribe: '', uniqueId: '', clan: '' });
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
     const [myId, setMyId] = useState('');
+    const [socket, setSocket] = useState(null);
+    const [manualForm, setManualForm] = useState({
+        name: '', surname: '', thirdName: '', fourthName: '',
+        sex: '', maidenName: '', relationship: 'CHILD_OF',
+        isDeceased: false, deathYear: '', deathMonth: ''
+    });
+    const [completeness, setCompleteness] = useState({ percent: 0, missing: [], isComplete: true });
+
+    const handleManualChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setManualForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    };
+
+    useEffect(() => {
+        const initSocket = async () => {
+            await fetch('/api/socket');
+            const { io } = await import('socket.io-client');
+            const s = io({ path: '/api/socket' });
+            setSocket(s);
+        };
+        initSocket();
+    }, []);
+
+    const handleManualSubmit = async (e) => {
+        e.preventDefault();
+        if (!myId) {
+            alert("Please enter your Watu.Network ID first (top right)");
+            return;
+        }
+        if (!completeness.isComplete) {
+            alert(`VAULT LOCK: YOUR PROFILE IS ONLY ${completeness.percent}% COMPLETE. PLEASE FINISH YOUR PROFILE FIRST.`);
+            return;
+        }
+        if (!manualForm.name || !manualForm.surname || !manualForm.sex) {
+            alert("Please fill in the required fields (Sex, Given Name, Surname)");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const res = await fetch('/api/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    personId: myId.toUpperCase(),
+                    action: 'MANUAL_ADD',
+                    relationship: manualForm.relationship,
+                    details: manualForm
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(`SUCCESS! ${manualForm.name} ADDED TO YOUR TREE (#${data.id})`);
+                if (socket) socket.emit('heritage-update', { id: myId.toUpperCase(), relativeId: data.id });
+                setManualForm({
+                    name: '', surname: '', thirdName: '', fourthName: '',
+                    sex: '', maidenName: '', relationship: 'CHILD_OF',
+                    isDeceased: false, deathYear: '', deathMonth: ''
+                });
+            } else {
+                alert(data.error || "Failed to add relative");
+            }
+        } catch (err) {
+            alert("Connection failed");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        // Priority 1: Session Watu ID
+        if (session?.user?.watuId) {
+            setMyId(session.user.watuId);
+        } else {
+            // Priority 2: Local Storage fallback
+            const storedId = localStorage.getItem('watu_id');
+            if (storedId) setMyId(storedId);
+        }
+    }, [session]);
+
+    useEffect(() => {
+        if (myId) {
+            fetch(`/api/tree?personId=${myId.toUpperCase()}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.nodes && data.nodes.length > 0) {
+                        const user = data.nodes.find(n => n.id === myId.toUpperCase());
+                        if (user) setCompleteness(calculateCompleteness(user));
+                    }
+                })
+                .catch(err => console.error("Completeness check failed", err));
+        }
+    }, [myId]);
 
     const handleSearch = async (e) => {
         e.preventDefault();
@@ -27,15 +123,20 @@ export default function ConnectPage() {
             alert("Please enter your Watu.Network ID first (top right)");
             return;
         }
+        if (!completeness.isComplete) {
+            alert(`VAULT LOCK: YOUR PROFILE IS ONLY ${completeness.percent}% COMPLETE. PLEASE FINISH YOUR PROFILE FIRST.`);
+            return;
+        }
         try {
             const res = await fetch('/api/connect', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ personId: myId, relativeId, relationship })
+                body: JSON.stringify({ personId: myId.toUpperCase(), relativeId, relationship })
             });
             const data = await res.json();
             if (data.success) {
                 alert(`Connected! Trees are automatically updated.`);
+                if (socket) socket.emit('heritage-update', { id: myId.toUpperCase(), relativeId });
             } else {
                 alert(data.error);
             }
@@ -61,6 +162,33 @@ export default function ConnectPage() {
                     />
                 </div>
             </div>
+
+            {!completeness.isComplete && myId && (
+                <div className="glass animate-fade-in" style={{
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    background: 'rgba(239, 68, 68, 0.05)',
+                    marginBottom: '2rem',
+                    padding: '2rem',
+                    textAlign: 'center'
+                }}>
+                    <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🔒</div>
+                    <h2 style={{ color: '#fff', fontSize: '1.25rem', marginBottom: '0.5rem' }}>VAULT LOCK ACTIVE</h2>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: '500px', margin: '0 auto 1.5rem auto' }}>
+                        YOUR HERITAGE PROFILE IS ONLY <strong>{completeness.percent}%</strong> COMPLETE.
+                        TO ENSURE DATA INTEGRITY, YOU MUST REACH 100% BEFORE CONNECTING WITH KIN.
+                    </p>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+                        {completeness.missing.map(item => (
+                            <span key={item} style={{ fontSize: '0.65rem', padding: '4px 10px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', borderRadius: '4px', fontWeight: 'bold' }}>
+                                MISSING: {item.toUpperCase()}
+                            </span>
+                        ))}
+                    </div>
+                    <button onClick={() => window.location.href = '/profile'} className="btn-primary" style={{ padding: '0.75rem 2rem' }}>
+                        COMPLETE MY PROFILE NOW
+                    </button>
+                </div>
+            )}
 
             <form onSubmit={handleSearch} className="glass" style={{
                 marginBottom: '3rem',
@@ -124,11 +252,16 @@ export default function ConnectPage() {
                                         {person.name.charAt(0)}
                                     </div>
                                     <div>
-                                        <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#fff' }}>{person.name} {person.surname}</h3>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--foreground)' }}>{person.name} {person.surname}</h3>
+                                            {person.isDeceased && (
+                                                <span style={{ fontSize: '0.6rem', padding: '2px 8px', borderRadius: '4px', background: 'rgba(248, 113, 113, 0.1)', color: '#f87171', fontWeight: 'bold' }}>RESTING</span>
+                                            )}
+                                        </div>
                                         <p style={{ margin: '0.2rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                            {person.tribe} • {person.clan || 'No Clan'} • {person.birthPlace}
+                                            {person.tribe} • {person.subTribe || 'No Clan'} • {person.birthPlace}
                                         </p>
-                                        <code style={{ fontSize: '0.75rem', color: '#818cf8', fontWeight: '600' }}>#{person.id}</code>
+                                        <code style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: '600' }}>#{person.id}</code>
                                     </div>
                                 </div>
 
@@ -139,17 +272,20 @@ export default function ConnectPage() {
                                         style={{
                                             background: 'rgba(255,255,255,0.05)',
                                             border: '1px solid var(--border)',
-                                            color: '#fff',
+                                            color: 'var(--foreground)',
                                             padding: '0.65rem 1rem',
                                             borderRadius: '10px',
                                             fontSize: '0.9rem',
                                             outline: 'none'
                                         }}
                                     >
-                                        <option value="PARENT_OF">is my Child</option>
-                                        <option value="CHILD_OF">is my Parent</option>
-                                        <option value="SIBLING_OF">is my Sibling</option>
-                                        <option value="SPOUSE_OF">is my Spouse</option>
+                                        <option value="PARENT_OF">is my {person.sex === 'female' ? 'Daughter' : 'Son'}</option>
+                                        <option value="CHILD_OF">is my {person.sex === 'female' ? 'Mother' : 'Father'}</option>
+                                        <option value="SIBLING_OF">is my {person.sex === 'female' ? 'Sister' : 'Brother'}</option>
+                                        <option value="SPOUSE_OF">is my {person.sex === 'female' ? 'Wife' : 'Husband'}</option>
+                                        <option value="GRANDCHILD_OF">is my {person.sex === 'female' ? 'Grandmother' : 'Grandfather'}</option>
+                                        <option value="GRANDPARENT_OF">is my {person.sex === 'female' ? 'Granddaughter' : 'Grandson'}</option>
+                                        <option value="COUSIN_OF">is my Cousin / Kin</option>
                                     </select>
                                     <button
                                         className="btn-primary"
@@ -166,16 +302,129 @@ export default function ConnectPage() {
                         ))}
                     </div>
                 ) : (
-                    <div style={{
+                    <div className="glass" style={{
                         textAlign: 'center',
                         padding: '4rem 2rem',
                         background: 'rgba(255,255,255,0.02)',
                         borderRadius: 'var(--radius-lg)',
                         border: '1px dashed var(--border)',
-                        color: 'var(--text-secondary)'
+                        color: 'var(--text-secondary)',
+                        transition: 'all 0.3s ease'
                     }}>
-                        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🔎</div>
-                        <p>No family members found yet. Try search by surname or tribe to find your roots.</p>
+                        <div style={{ fontSize: '2.5rem', marginBottom: '1.5rem' }}>🌳</div>
+                        <h3 style={{ color: '#fff', marginBottom: '0.5rem' }}>Map Your Ancestry</h3>
+                        <p style={{ marginBottom: '2rem' }}>Can't find your relative in the network? Add them manually to your lineage to preserve their legacy.</p>
+
+                        <div style={{ maxWidth: '500px', margin: '0 auto', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                            {/* SEX SELECTION */}
+                            <div style={inputGroup}>
+                                <label style={labelStyle}>SEX</label>
+                                <div style={{ display: 'flex', gap: '1rem' }}>
+                                    <label className="glass" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '0.75rem', border: manualForm.sex === 'male' ? '2px solid var(--accent)' : '1px solid var(--border)', background: manualForm.sex === 'male' ? 'var(--accent-muted)' : 'transparent' }}>
+                                        <input type="radio" name="manual_sex" value="male" checked={manualForm.sex === 'male'} onChange={() => setManualForm({ ...manualForm, sex: 'male' })} style={{ width: '16px', height: '16px' }} />
+                                        <span style={{ fontWeight: '700', fontSize: '0.8rem', color: 'var(--foreground)' }}>MALE</span>
+                                    </label>
+                                    <label className="glass" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '0.75rem', border: manualForm.sex === 'female' ? '2px solid var(--accent)' : '1px solid var(--border)', background: manualForm.sex === 'female' ? 'var(--accent-muted)' : 'transparent' }}>
+                                        <input type="radio" name="manual_sex" value="female" checked={manualForm.sex === 'female'} onChange={() => setManualForm({ ...manualForm, sex: 'female' })} style={{ width: '16px', height: '16px' }} />
+                                        <span style={{ fontWeight: '700', fontSize: '0.8rem', color: 'var(--foreground)' }}>FEMALE</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div style={inputGroup}>
+                                    <label style={labelStyle}>GIVEN NAME</label>
+                                    <input className="search-input" name="name" placeholder="FIRST NAME" value={manualForm.name} onChange={handleManualChange} />
+                                </div>
+                                <div style={inputGroup}>
+                                    <label style={labelStyle}>SURNAME (FAMILY NAME)</label>
+                                    <input className="search-input" name="surname" placeholder="FAMILY NAME" value={manualForm.surname} onChange={handleManualChange} />
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div style={inputGroup}>
+                                    <label style={labelStyle}>3RD NAME <span style={{ opacity: 0.5, fontWeight: 400 }}>(OPTIONAL)</span></label>
+                                    <input className="search-input" name="thirdName" placeholder="MIDDLE NAME" value={manualForm.thirdName} onChange={handleManualChange} />
+                                </div>
+                                <div style={inputGroup}>
+                                    <label style={labelStyle}>4TH NAME <span style={{ opacity: 0.5, fontWeight: 400 }}>(OPTIONAL)</span></label>
+                                    <input className="search-input" name="fourthName" placeholder="OTHER NAME" value={manualForm.fourthName} onChange={handleManualChange} />
+                                </div>
+                            </div>
+
+                            {manualForm.sex === 'female' && (
+                                <div style={inputGroup} className="animate-fade-in">
+                                    <label style={labelStyle}>MAIDEN NAME <span style={{ opacity: 0.5, fontWeight: 400 }}>(FAMILY OF BIRTH)</span></label>
+                                    <input className="search-input" name="maidenName" placeholder="MAIDEN FAMILY NAME" value={manualForm.maidenName} onChange={handleManualChange} />
+                                </div>
+                            )}
+
+                            {/* RELATIONSHIP SELECTION */}
+                            <div style={inputGroup}>
+                                <label style={labelStyle}>RELATIONSHIP TO YOU</label>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                    {[
+                                        { label: 'FATHER / MOTHER', val: 'CHILD_OF' },
+                                        { label: 'SON / DAUGHTER', val: 'PARENT_OF' },
+                                        { label: 'BROTHER / SISTER', val: 'SIBLING_OF' },
+                                        { label: 'HUSBAND / WIFE', val: 'SPOUSE_OF' },
+                                        { label: 'GRANDPARENT', val: 'GRANDCHILD_OF' },
+                                        { label: 'GRANDCHILD', val: 'GRANDPARENT_OF' },
+                                        { label: 'COUSIN', val: 'COUSIN_OF' }
+                                    ].map(rel => (
+                                        <button
+                                            key={rel.val}
+                                            type="button"
+                                            onClick={() => setManualForm({ ...manualForm, relationship: rel.val })}
+                                            className="glass"
+                                            style={{
+                                                padding: '0.8rem',
+                                                fontSize: '0.75rem',
+                                                fontWeight: '700',
+                                                border: manualForm.relationship === rel.val ? '2px solid var(--accent)' : '1px solid var(--border)',
+                                                background: manualForm.relationship === rel.val ? 'var(--accent-muted)' : 'transparent',
+                                                color: manualForm.relationship === rel.val ? 'var(--accent)' : 'var(--foreground)',
+                                                borderRadius: '12px',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s'
+                                            }}
+                                        >
+                                            {rel.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="glass" style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <input type="checkbox" id="addIsDeceased" name="isDeceased" checked={manualForm.isDeceased} onChange={handleManualChange} style={{ width: '16px', height: '16px' }} />
+                                    <label htmlFor="addIsDeceased" style={{ fontSize: '0.85rem', color: '#fff', fontWeight: '600', textTransform: 'uppercase' }}>This family member is deceased</label>
+                                </div>
+                                {manualForm.isDeceased && (
+                                    <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }} className="animate-fade-in">
+                                        <div style={inputGroup}>
+                                            <label style={labelStyle}>Year of Death</label>
+                                            <input name="deathYear" className="search-input" placeholder="YEAR" type="number" value={manualForm.deathYear} onChange={handleManualChange} />
+                                        </div>
+                                        <div style={inputGroup}>
+                                            <label style={labelStyle}>Month</label>
+                                            <input name="deathMonth" className="search-input" placeholder="MONTH" value={manualForm.deathMonth} onChange={handleManualChange} />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleManualSubmit}
+                                className="btn-primary"
+                                style={{ padding: '1rem', width: '100%' }}
+                                disabled={loading}
+                            >
+                                {loading ? 'ADDING...' : 'ADD TO MY FULL TREE'}
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>

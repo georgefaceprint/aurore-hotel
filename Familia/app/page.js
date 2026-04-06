@@ -1,8 +1,10 @@
 'use client';
-import FamilyTree from '../components/FamilyTree';
+import FamilyTreeVis from './components/FamilyTreeVis';
 import { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
 
 export default function HomePage() {
+    const { data: session } = useSession();
     const [isMobile, setIsMobile] = useState(false);
 
     useEffect(() => {
@@ -12,126 +14,169 @@ export default function HomePage() {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    const sampleData = {
-        name: "Nelson Ndlela (Patriarch)",
-        children: [
-            {
-                name: "Thabo Ndlela (Eldest Son)",
-                children: [
-                    { name: "Sipho Ndlela (Grandson)" },
-                    { name: "Nandi Ndlela (Granddaughter)" }
-                ]
-            },
-            {
-                name: "Zanele Moyo (Daughter)",
-                children: [
-                    { name: "Lerato Moyo (Granddaughter)" },
-                    {
-                        name: "Bheki Moyo (Grandson)",
-                        children: [
-                            { name: "Thandi Moyo (Great-Granddaughter)" }
-                        ]
-                    }
-                ]
-            },
-            {
-                name: "Kabelo Ndlela (Youngest Son)"
-            }
-        ]
+    const [treeData, setTreeData] = useState({ nodes: [], links: [] });
+    const [searchId, setSearchId] = useState('');
+    const [loadingTree, setLoadingTree] = useState(false);
+
+    const fetchTree = async (id) => {
+        if (!id) return;
+        setLoadingTree(true);
+        try {
+            const res = await fetch(`/api/tree?personId=${id.toUpperCase()}`);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            setTreeData(data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoadingTree(false);
+        }
     };
 
+    useEffect(() => {
+        let socket;
+        const initSocket = async () => {
+            await fetch('/api/socket');
+            const { io } = await import('socket.io-client');
+            socket = io({ path: '/api/socket' });
+
+            socket.on('heritage-update', (data) => {
+                // If the update involves the person we are looking at, or one of their relatives
+                // For simplicity, we refresh if any update happens while on this screen
+                console.log("⚡ Real-time Heritage Update Received", data);
+                if (searchId) fetchTree(searchId);
+            });
+        };
+        initSocket();
+        return () => { if (socket) socket.disconnect(); };
+    }, [searchId]);
+
+    useEffect(() => {
+        if (session?.user?.watuId) {
+            console.log("🌳 Tree Session Active ID:", session.user.watuId);
+            setSearchId(session.user.watuId);
+            fetchTree(session.user.watuId);
+        } else {
+            const fallbackId = 'XT4NAS';
+            console.log("🌳 Tree Fallback ID:", fallbackId);
+            setSearchId(fallbackId);
+            fetchTree(fallbackId);
+        }
+    }, [session]);
+
     return (
-        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: '3rem', paddingBottom: '100px' }}>
-            {/* Hero Section */}
-            <section style={{
-                textAlign: 'center',
-                padding: '4rem 1.5rem',
-                background: 'radial-gradient(circle at center, rgba(99, 102, 241, 0.15) 0%, transparent 70%)',
-                animation: 'fadeInUp 1s ease-out'
-            }}>
-                <div style={{
-                    display: 'inline-block',
-                    padding: '8px 16px',
-                    borderRadius: '999px',
-                    background: 'rgba(99, 102, 241, 0.1)',
-                    border: '1px solid rgba(99, 102, 241, 0.2)',
-                    color: '#818cf8',
-                    fontSize: '0.875rem',
-                    fontWeight: '600',
-                    marginBottom: '1.5rem'
-                }}>
-                    The Future of Heritage is Here
-                </div>
-                <h1 style={{
-                    fontSize: isMobile ? '2.5rem' : '4rem',
-                    lineHeight: '1.1',
-                    background: 'linear-gradient(to bottom, #fff, #94a3b8)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    marginBottom: '1.5rem'
-                }}>
-                    Connect with Your <br /> Legacy on Watu.Network
-                </h1>
-                <p style={{
-                    color: 'var(--text-secondary)',
-                    fontSize: isMobile ? '1rem' : '1.25rem',
-                    maxWidth: '600px',
-                    margin: '0 auto 2.5rem auto'
-                }}>
-                    Trace your ancestry, unite your clan, and protect your digital heritage in a secure, collaborative community built for generations.
-                </p>
-
-                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                    <a href="/onboard">
-                        <button className="btn-primary">Get Started Now</button>
-                    </a>
-                    <a href="/connect">
-                        <button className="btn-secondary">Search Ancestry</button>
-                    </a>
-                </div>
-            </section>
-
-            {/* Tree Section */}
-            <section style={{ width: '100%', maxWidth: '1000px', margin: '0 auto', padding: '0 1rem' }}>
-                <div className="glass" style={{ padding: '0', overflow: 'hidden' }}>
-                    <div style={{ padding: '2rem 2rem 0 2rem', textAlign: isMobile ? 'center' : 'left' }}>
-                        <h2 style={{ fontSize: '1.5rem', color: '#fff', marginBottom: '0.5rem' }}>Visual Genealogy</h2>
-                        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-                            Explore our interactive lineage mapper. Search and find connections across any family branch instantly.
-                        </p>
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--background)' }}>
+            {/* Tree Section - FULL CINEMATIC LAYOUT */}
+            <section style={{ width: '100%', padding: '0', position: 'relative', flex: 1 }}>
+                <div style={{ position: 'relative', height: '100%' }}>
+                    {/* Floating Info Overlay */}
+                    <div style={{
+                        position: 'absolute',
+                        top: isMobile ? '1rem' : '3rem',
+                        left: isMobile ? '1rem' : '3rem',
+                        zIndex: 20,
+                        pointerEvents: 'none',
+                        maxWidth: isMobile ? '200px' : '400px'
+                    }}>
+                        <h2 style={{
+                            fontSize: isMobile ? '1.5rem' : '2.5rem',
+                            color: 'var(--foreground)',
+                            marginBottom: '0.5rem',
+                            letterSpacing: '-0.02em',
+                            textShadow: '0 2px 10px var(--background)'
+                        }}>LINEAGE EXPLORER</h2>
+                        {!isMobile && (
+                            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                                MAPPING THE WATU.NETWORK CLAN BRANCHES. <br />
+                                DISCOVER CONNECTIONS SECURED IN THE GLOBAL HERITAGE ARCHIVE.
+                            </p>
+                        )}
                     </div>
-                    <div style={{ minHeight: '500px' }}>
-                        <FamilyTree data={sampleData} />
+
+                    {/* Search Overlay */}
+                    <div style={{
+                        position: 'absolute',
+                        top: isMobile ? 'auto' : '3rem',
+                        bottom: isMobile ? '85px' : 'auto',
+                        right: isMobile ? '1rem' : '3rem',
+                        left: isMobile ? '1rem' : 'auto',
+                        zIndex: 20,
+                        display: 'flex',
+                        gap: '8px'
+                    }}>
+                        <input
+                            className="search-input"
+                            placeholder="FIND WATU ID..."
+                            value={searchId}
+                            onChange={e => setSearchId(e.target.value)}
+                            style={{
+                                background: 'var(--card)',
+                                backdropFilter: 'blur(20px)',
+                                border: '1px solid var(--border)',
+                                color: 'var(--foreground)',
+                                flex: isMobile ? 1 : 'none',
+                                width: isMobile ? 'auto' : '250px',
+                                boxShadow: 'var(--shadow-glow)'
+                            }}
+                        />
+                        <button
+                            className="btn-primary"
+                            onClick={() => fetchTree(searchId)}
+                            style={{ padding: isMobile ? '0.75rem 1.25rem' : '0.85rem 1.5rem' }}
+                            disabled={loadingTree}
+                        >
+                            {loadingTree ? '...' : 'SCAN'}
+                        </button>
                     </div>
+
+                    <FamilyTreeVis
+                        data={treeData}
+                        focusId={searchId}
+                        onNodeClick={(d) => {
+                            setSearchId(d.id);
+                            fetchTree(d.id);
+                        }}
+                    />
                 </div>
             </section>
 
             {/* Premium CTA Section */}
             <section style={{
                 width: '100%',
-                maxWidth: '800px',
-                margin: '2rem auto',
-                padding: '0 1.5rem'
+                maxWidth: '900px',
+                margin: '4rem auto',
+                padding: '0 1.5rem',
+                paddingBottom: '100px'
             }}>
                 <div style={{
-                    padding: '2.5rem',
-                    background: 'linear-gradient(135deg, #1e1b4b 0%, #0c0a09 100%)',
+                    padding: '3rem',
+                    background: 'var(--card)',
                     borderRadius: 'var(--radius-lg)',
-                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    border: '1px solid var(--border)',
                     textAlign: 'center',
-                    boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
+                    position: 'relative',
+                    overflow: 'hidden'
                 }}>
-                    <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🔒</div>
-                    <h2 style={{ fontSize: '1.75rem', color: '#fff' }}>Protect Your Heritage</h2>
-                    <p style={{ color: '#94a3b8', marginBottom: '2rem', fontSize: '1rem' }}>
-                        Join over 10,000 clans worldwide. Ensure your family's future legacy is as secure as their history.
+                    <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: '4px',
+                        background: 'linear-gradient(to right, var(--accent), var(--accent-secondary))'
+                    }} />
+                    <div style={{ fontSize: '2.5rem', marginBottom: '1.5rem' }}>🛡️</div>
+                    <h2 style={{ fontSize: '1.75rem', color: 'var(--foreground)', marginBottom: '1rem' }}>Secure Your Heritage</h2>
+                    <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '1.1rem', maxWidth: '600px', margin: '0 auto 2rem auto' }}>
+                        Join a global network of clans protecting their lineage and legacy through secure connection and verification.
                     </p>
-                    <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                        <a href="https://myhazina.org" target="_blank" style={{ color: '#818cf8', fontWeight: '600' }}>
-                            Visit MyHazina.org &rarr;
+                    <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <a href="/onboard" className="btn-primary" style={{ textDecoration: 'none' }}>
+                            Join Watu Network
                         </a>
-                        <a href="/events" style={{ color: '#818cf8', fontWeight: '600' }}>
-                            Join Community Events &rarr;
+                        <a href="/events" className="btn-secondary" style={{ textDecoration: 'none' }}>
+                            Explore Events
                         </a>
                     </div>
                 </div>
@@ -139,19 +184,24 @@ export default function HomePage() {
 
             {/* Mobile Bottom Nav Spacer */}
             <div style={{ height: '20px' }} />
+
+            <style jsx>{`
+                .search-input {
+                    background: var(--card);
+                    border: 1px solid var(--border);
+                    color: var(--foreground);
+                    padding: 0.85rem 1rem;
+                    border-radius: 12px;
+                    font-size: 0.9rem;
+                    outline: none;
+                    transition: all 0.2s;
+                }
+                .search-input:focus {
+                    border-color: var(--accent);
+                    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+                }
+            `}</style>
         </div>
     );
 }
 
-const styles = `
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-`;

@@ -1,25 +1,71 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { io } from 'socket.io-client';
+import { useSession } from 'next-auth/react';
 
 export default function ChatPage() {
-    const [activeTab, setActiveTab] = useState('chats'); // 'chats' or 'groups'
+    const { data: session } = useSession();
+    const [activeTab, setActiveTab] = useState('chats');
     const [selectedId, setSelectedId] = useState(null);
-    const scrollRef = useRef(null);
-
-    const [groups, setGroups] = useState([
-        { id: 1, name: 'Sifuna Clan Global', type: 'CLAN', members: 45, lastMessage: 'Nelson: We need to update the heritage records for March.', time: '10:24 AM', unread: 3 },
-        { id: 2, name: 'Nairobi Branch Cousins', type: 'PRIVATE', members: 12, lastMessage: 'Sarah: Who is bringing the photos?', time: 'Yesterday', unread: 0 },
-        { id: 3, name: 'Moyo Family Legacy', type: 'CLAN', members: 89, lastMessage: 'Bheki: The funeral plan is now active.', time: '2 days ago', unread: 0 },
-    ]);
-
-    const [messages, setMessages] = useState([
-        { id: 1, sender: 'Nelson Ndlela', text: 'Peace be upon you all. I have updated our patriarch lineage.', time: '10:00 AM', isMe: false },
-        { id: 2, sender: 'Me', text: 'Thank you Nelson. I can see the new connections on the tree.', time: '10:15 AM', isMe: true },
-        { id: 3, sender: 'Thabo', text: 'This system is much faster than the old manual records.', time: '10:20 AM', isMe: false },
-        { id: 4, sender: 'Nelson', text: 'We need to update the heritage records for March.', time: '10:24 AM', isMe: false },
-    ]);
-
     const [input, setInput] = useState('');
+    const scrollRef = useRef(null);
+    const socketRef = useRef(null);
+
+    const [groups, setGroups] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [messages, setMessages] = useState([]);
+
+    useEffect(() => {
+        const fetchGroups = async () => {
+            try {
+                const res = await fetch('/api/user/groups');
+                const data = await res.json();
+                if (!data.error) {
+                    setGroups(data);
+                    if (data.length > 0 && window.innerWidth >= 768) setSelectedId(data[0].id);
+                }
+            } catch (err) {
+                console.error("Failed to load clan groups", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchGroups();
+    }, []);
+
+    useEffect(() => {
+        // Initialize socket connection
+        fetch('/api/socket').finally(() => {
+            const socket = io({
+                path: '/api/socket',
+            });
+            socketRef.current = socket;
+
+            socket.on('receive-message', (msg) => {
+                setMessages(prev => {
+                    // Avoid duplicate messages for sender (already added locally)
+                    if (msg.senderId === session?.user?.watuId) return prev;
+                    return [...prev, { ...msg, isMe: false }];
+                });
+            });
+
+            socket.on('chat-history', (history) => {
+                setMessages(history.map(msg => ({
+                    ...msg,
+                    isMe: msg.senderId === session?.user?.watuId
+                })));
+            });
+
+            return () => socket.disconnect();
+        });
+    }, [session?.user?.watuId]);
+
+    useEffect(() => {
+        if (selectedId && socketRef.current) {
+            setMessages([]); // Clear while loading history
+            socketRef.current.emit('join-room', `group-${selectedId}`);
+        }
+    }, [selectedId]);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -29,15 +75,24 @@ export default function ChatPage() {
 
     const handleSend = (e) => {
         e.preventDefault();
-        if (!input.trim()) return;
+        if (!input.trim() || !socketRef.current || !session?.user) return;
+
+        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const newMessage = {
-            id: messages.length + 1,
-            sender: 'Me',
+            id: Date.now(),
+            roomId: `group-${selectedId}`,
+            sender: session.user.name || 'Anonymous',
+            senderId: session.user.watuId,
             text: input,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            time: timestamp,
             isMe: true
         };
-        setMessages([...messages, newMessage]);
+
+        // Emit to server
+        socketRef.current.emit('send-message', newMessage);
+
+        // Update locally for instant feedback
+        setMessages(prev => [...prev, newMessage]);
         setInput('');
     };
 
@@ -59,7 +114,7 @@ export default function ChatPage() {
                     transition: 'all 0.3s ease',
                     flex: '1 1 auto',
                     overflow: 'hidden'
-                } as any}>
+                }}>
                     {/* Desktop Sidebar always shows */}
                     <div className="sidebar-content" style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
                         <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', display: 'flex', gap: '0.5rem' }}>
@@ -147,7 +202,7 @@ export default function ChatPage() {
                     display: selectedId ? 'flex' : 'none',
                     flexDirection: 'column',
                     background: 'rgba(0,0,0,0.2)'
-                } as any}>
+                }}>
                     {selectedId ? (
                         <>
                             {/* Chat Header */}
@@ -244,6 +299,6 @@ export default function ChatPage() {
                     background: rgba(255,255,255,0.08) !important;
                 }
             `}} />
-        </div>
+        </div >
     );
 }

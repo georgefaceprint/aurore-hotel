@@ -81,7 +81,8 @@ const translations = {
     adults: "Adults",
     children: "Children",
     checkIn: "Arrival",
-    checkOut: "Departure"
+    checkOut: "Departure",
+    roomCapacity: "Capacity"
   },
   fr: {
     heroTitle: "L'Excellence Aurore Ecce",
@@ -157,7 +158,8 @@ const translations = {
     adults: "Adultes",
     children: "Enfants",
     checkIn: "Date d'arrivée",
-    checkOut: "Date de départ"
+    checkOut: "Date de départ",
+    roomCapacity: "Capacité"
   }
 };
 

@@ -1,227 +1,514 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { calculateCompleteness, calculateAge } from '@/lib/utils';
+import { kenyanTribes } from '@/lib/clan_registry';
+import WatuIDCard from '../components/WatuIDCard';
 
 export default function ProfilePage() {
+    const { data: session, status } = useSession();
+    const router = useRouter();
     const fileInputRef = useRef(null);
     const [profilePic, setProfilePic] = useState(null);
     const [profile, setProfile] = useState({
-        name: 'James Sifuna',
-        birthPlace: 'Nairobi, Kenya',
-        birthYear: '1992',
-        residency: 'Mombasa Road, Nairobi',
-        profession: 'Software Engineer',
-        clan: 'Kaplelach'
+        id: '',
+        name: 'LOADING...',
+        surname: '',
+        birthPlace: '',
+        residency: '',
+        profession: '',
+        clan: '',
+        tribe: '',
+        subTribe: '',
+        dob: '',
+        birthOrder: '',
+        phoneCode: '',
+        phoneNumber: '',
+        isDeceased: false,
+        deathYear: '',
+        deathMonth: '',
+        securityQuestion: '',
+        photo: null
     });
 
+    const [updating, setUpdating] = useState(false);
+
+    const countryCodes = [
+        { code: '+254', flag: '🇰🇪', name: 'Kenya' },
+        { code: '+27', flag: '🇿🇦', name: 'South Africa' },
+        { code: '+234', flag: '🇳🇬', name: 'Nigeria' },
+        { code: '+255', flag: '🇹🇿', name: 'Tanzania' },
+        { code: '+256', flag: '🇺🇬', name: 'Uganda' },
+        { code: '+250', flag: '🇷🇼', name: 'Rwanda' },
+        { code: '+251', flag: '🇪🇹', name: 'Ethiopia' },
+        { code: '+44', flag: '🇬🇧', name: 'UK' },
+        { code: '+1', flag: '🇺🇸', name: 'USA' },
+    ];
+
+    const birthPositions = [
+        'First Born', 'Second Born', 'Third Born', 'Fourth Born', 'Fifth Born',
+        'Sixth Born', 'Seventh Born', 'Eighth Born', 'Ninth Born', 'Tenth Born',
+        'Last Born', 'Only Child'
+    ];
+
+    const securityQuestions = [
+        'What was the name of your first pet?',
+        'In what city were you born?',
+        'What is your mother\'s maiden name?',
+        'What was the name of your first school?',
+        'What is your favorite ancestral dish?'
+    ];
+
+    useEffect(() => {
+        if (status === 'loading') return; // Don't redirect during session load
+        if (status === 'unauthenticated') {
+            router.push('/login');
+        } else if (session?.user?.id) {
+            fetchProfile(session.user.id);
+        }
+    }, [session, status]);
+
+    const [selectedTribeData, setSelectedTribeData] = useState(null);
+
+    useEffect(() => {
+        if (profile.tribe) {
+            const tribe = kenyanTribes.find(t => t.name === profile.tribe);
+            setSelectedTribeData(tribe || null);
+        } else {
+            setSelectedTribeData(null);
+        }
+    }, [profile.tribe]);
+    const fetchProfile = async (id) => {
+        try {
+            const res = await fetch(`/api/tree?personId=${id}`);
+            const data = await res.json();
+            if (data.nodes && data.nodes.length > 0) {
+                const user = data.nodes.find(n => n.id === id);
+                if (user) setProfile({ ...profile, ...user });
+            }
+        } catch (err) {
+            console.error("Failed to load cloud profile:", err);
+        }
+    };
+
+    const kenyanTribesList = kenyanTribes?.map(t => t.name) || [];
+    const subTribesList = selectedTribeData ? selectedTribeData.subGroups : [];
+
     const handleChange = (e) => {
-        setProfile({ ...profile, [e.target.name]: e.target.value });
+        const { name, value, type, checked } = e.target;
+        setProfile({ ...profile, [name]: type === 'checkbox' ? checked : value });
     };
 
     const handlePhotoChange = (e) => {
         const file = e.target.files[0];
         if (file) {
+            // Compress image using canvas to avoid massive JSON payloads
             const reader = new FileReader();
-            reader.onloadend = () => {
-                setProfilePic(reader.result);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 800; // Profile pics don't need to be huge
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                    setProfilePic(compressedBase64);
+                    setProfile(prev => ({ ...prev, photo: compressedBase64 }));
+                };
+                img.src = event.target.result;
             };
             reader.readAsDataURL(file);
         }
     };
 
+    const handleSubmit = async (e) => {
+        if (e) e.preventDefault();
+        setUpdating(true);
+        try {
+            const res = await fetch('/api/profile/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(profile)
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            alert('✅ HERITAGE RECORDS UPDATED IN VAULT');
+        } catch (err) {
+            alert('❌ UPDATE FAILED: ' + err.message);
+        } finally {
+            setUpdating(false);
+        }
+    };
+
     return (
-        <div className="container" style={{ paddingBottom: '100px' }}>
-            <div style={{ marginBottom: '3rem' }}>
-                <h1 style={{ fontSize: '2.5rem', color: '#fff', marginBottom: '0.5rem' }}>Personal Heritage</h1>
-                <p style={{ color: 'var(--text-secondary)', maxWidth: '500px' }}>Complete your profile to build your digital legacy and help relatives find their connection to you.</p>
-            </div>
+        <div className="profile-wrapper">
+            <div className="profile-container container animate-fade-in">
+                {/* Header Section */}
+                <header className="profile-header">
+                    <h1 className="bold-title text-gradient">ANCESTRAL VAULT</h1>
+                    <p className="subtitle">CURATE YOUR LEGACY • PROTECT YOUR HERITAGE</p>
+                </header>
 
-            <div className="glass animate-fade-in" style={{ maxWidth: '700px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '3rem' }}>
-                {/* Photo & Identity Section */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem' }}>
-                    <div style={{ position: 'relative' }}>
-                        <div
-                            style={{
-                                width: '160px',
-                                height: '160px',
-                                borderRadius: '40px',
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                overflow: 'hidden',
-                                border: '2px dashed rgba(99, 102, 241, 0.4)',
-                                boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
-                                cursor: 'pointer',
-                                transition: 'all 0.3s ease'
-                            }}
-                            className="profile-photo-container"
-                            onClick={() => fileInputRef.current.click()}
-                        >
-                            {profilePic ? (
-                                <img src={profilePic} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                                <div style={{ textAlign: 'center' }}>
-                                    <span style={{ fontSize: '3rem', display: 'block', marginBottom: '8px' }}>📸</span>
-                                    <span style={{ fontSize: '0.7rem', color: 'var(--accent)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Upload Portrait</span>
+                <div className="profile-grid">
+                    {/* Left Column: ID & Stats */}
+                    <div className="profile-sidebar">
+                        <div className="glass-card id-card-wrapper sticky-top">
+                            <WatuIDCard person={profile} />
+
+                            <div className="completeness-dashboard">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--accent)', letterSpacing: '0.1em' }}>VAULT INTEGRITY</span>
+                                    <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff' }}>{calculateCompleteness(profile).percent}%</span>
                                 </div>
-                            )}
-                        </div>
-                        <button
-                            onClick={() => fileInputRef.current.click()}
-                            style={{
-                                position: 'absolute',
-                                bottom: '-10px',
-                                right: '-10px',
-                                width: '40px',
-                                height: '40px',
-                                border: 'none',
-                                background: 'var(--accent)',
-                                color: '#fff',
-                                borderRadius: '12px',
-                                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '1.25rem'
-                            }}>
-                            +
-                        </button>
-                    </div>
-
-                    <div style={{ textAlign: 'center' }}>
-                        <h2 style={{ fontSize: '1.5rem', color: '#fff', marginBottom: '0.25rem' }}>{profile.name}</h2>
-                        <code style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent)', padding: '4px 12px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 'bold' }}>W-XJ92-K5P1</code>
-                        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                            <span style={{ fontSize: '0.75rem', background: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', padding: '4px 12px', borderRadius: '999px', border: '1px solid rgba(34, 197, 94, 0.2)', fontWeight: 'bold' }}>VERIFIED</span>
-                        </div>
-                    </div>
-
-                    <div style={{ width: '100%', marginTop: 'auto' }}>
-                        <div style={{ padding: '1.25rem', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                            <h4 style={{ fontSize: '0.85rem', color: '#fff', marginBottom: '1rem' }}>Heritage Connectivity</h4>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Clan Status</span>
-                                <span style={{ fontSize: '0.8rem', color: '#fff', fontWeight: '600' }}>Active Member</span>
+                                <div className="progress-track">
+                                    <div className="progress-bar" style={{ width: `${calculateCompleteness(profile).percent}%` }}></div>
+                                </div>
+                                {!calculateCompleteness(profile).isComplete && (
+                                    <div className="missing-items">
+                                        <p style={{ fontSize: '0.65rem', color: '#f87171', marginBottom: '8px', fontWeight: 'bold' }}>LOCK ACTIVE: MISSING DATA</p>
+                                        <div className="tags">
+                                            {calculateCompleteness(profile).missing.map(m => (
+                                                <span key={m} className="missing-tag">{m.toUpperCase()}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Family Branch</span>
-                                <span style={{ fontSize: '0.8rem', color: '#fff', fontWeight: '600' }}>Central Branch</span>
+
+                            <button onClick={() => fileInputRef.current?.click()} className="btn-secondary flip-btn" style={{ width: '100%', marginTop: '1rem' }}>
+                                UPDATE BIOMETRIC PHOTO
+                            </button>
+                            <input type="file" ref={fileInputRef} onChange={handlePhotoChange} style={{ display: 'none' }} accept="image/*" />
+                        </div>
+                    </div>
+
+                    {/* Right Column: Form Sections */}
+                    <div className="profile-main">
+                        {/* Section 1: Vital Identity */}
+                        <div className="glass-card form-section shadow-lg">
+                            <h2 className="section-title"><span className="icon">👤</span> VITAL IDENTITY</h2>
+                            <div className="form-grid">
+                                <div className="input-group">
+                                    <label>Given Name</label>
+                                    <input name="name" value={profile.name} onChange={handleChange} className="bold-input" placeholder="LEGAL FIRST NAME" />
+                                </div>
+                                <div className="input-group">
+                                    <label>Family Surname</label>
+                                    <input name="surname" value={profile.surname} onChange={handleChange} className="bold-input" placeholder="ANCESTRAL SURNAME" />
+                                </div>
+                            </div>
+
+                            <div className="form-grid mt-4">
+                                <div className="input-group">
+                                    <label>Biological Sex</label>
+                                    <select name="sex" value={profile.sex} onChange={handleChange} className="bold-input">
+                                        <option value="">SELECT SEX</option>
+                                        <option value="MALE">MALE</option>
+                                        <option value="FEMALE">FEMALE</option>
+                                    </select>
+                                </div>
+                                <div className="input-group">
+                                    <label>Date of Birth {profile.dob && <span className="age-pill">{calculateAge(profile.dob)} YRS</span>}</label>
+                                    <input type="date" name="dob" value={profile.dob} onChange={handleChange} className="bold-input" />
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </div>
 
-                {/* Information Form */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div style={inputGroup}>
-                        <label style={labelStyle}>Full Legal Name</label>
-                        <input name="name" value={profile.name} onChange={handleChange} className="profile-input" />
-                    </div>
+                        {/* Section 2: Lineage & Roots */}
+                        <div className="glass-card form-section shadow-lg mt-6">
+                            <h2 className="section-title"><span className="icon">🌳</span> LINEAGE & ROOTS</h2>
+                            <div className="form-grid">
+                                <div className="input-group">
+                                    <label>Birth Position</label>
+                                    <select name="birthOrder" value={profile.birthOrder} onChange={handleChange} className="bold-input">
+                                        <option value="">SELECT POSITION</option>
+                                        {birthPositions.map(pos => <option key={pos} value={pos}>{pos.toUpperCase()}</option>)}
+                                    </select>
+                                </div>
+                                <div className="input-group">
+                                    <label>Country of Birth</label>
+                                    <select name="birthPlace" value={profile.birthPlace} onChange={handleChange} className="bold-input">
+                                        <option value="">SELECT COUNTRY</option>
+                                        {countryCodes.map(c => <option key={c.name} value={c.name}>{c.name.toUpperCase()}</option>)}
+                                    </select>
+                                </div>
+                            </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                        <div style={inputGroup}>
-                            <label style={labelStyle}>Place of Birth</label>
-                            <input name="birthPlace" value={profile.birthPlace} onChange={handleChange} className="profile-input" />
+                            <div className="form-grid mt-4">
+                                <div className="input-group">
+                                    <label>Ancestral Tribe</label>
+                                    <select name="tribe" value={profile.tribe} onChange={handleChange} className="bold-input">
+                                        <option value="">SELECT TRIBE</option>
+                                        {kenyanTribesList.map(t => <option key={t} value={t}>{t.toUpperCase()}</option>)}
+                                    </select>
+                                </div>
+                                <div className="input-group">
+                                    <label>Sub-Tribe / Group</label>
+                                    <select name="subTribe" value={profile.subTribe} onChange={handleChange} className="bold-input">
+                                        <option value="">SELECT SUB-TRIBE</option>
+                                        {subTribesList.map(st => <option key={st} value={st}>{st.toUpperCase()}</option>)}
+                                        <option value="Other">OTHER / UNLISTED</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="input-group mt-4">
+                                <label>Ancestral Clan</label>
+                                <input name="clan" value={profile.clan} onChange={handleChange} className="bold-input" placeholder="e.g. KAPLELACH" />
+                            </div>
                         </div>
-                        <div style={inputGroup}>
-                            <label style={labelStyle}>Year of Birth</label>
-                            <input type="number" name="birthYear" value={profile.birthYear} onChange={handleChange} className="profile-input" />
+
+                        {/* Section 3: Vault Security & Contact */}
+                        <div className="glass-card form-section shadow-lg mt-6">
+                            <h2 className="section-title"><span className="icon">🔒</span> VAULT SECURITY</h2>
+
+                            <div className="form-grid">
+                                <div className="input-group">
+                                    <label>Security Recovery Question</label>
+                                    <select name="securityQuestion" value={profile.securityQuestion} onChange={handleChange} className="bold-input">
+                                        <option value="">SELECT A QUESTION</option>
+                                        {securityQuestions.map(q => <option key={q} value={q}>{q.toUpperCase()}</option>)}
+                                    </select>
+                                </div>
+                                <div className="input-group">
+                                    <label>Ancestral Profession</label>
+                                    <input name="profession" value={profile.profession} onChange={handleChange} className="bold-input" placeholder="e.g. SYSTEM ARCHITECT" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Action Bar */}
+                        <div className="action-bar mt-8">
+                            <button
+                                onClick={handleSubmit}
+                                className="btn-primary push-btn"
+                                disabled={updating}
+                                style={{ width: '100%', padding: '1.25rem', fontSize: '1.1rem', fontWeight: '900' }}
+                            >
+                                {updating ? 'SYNCING WITH VAULT...' : 'COMMIT CHANGES TO HERITAGE'}
+                            </button>
                         </div>
                     </div>
-
-                    <div style={inputGroup}>
-                        <label style={labelStyle}>Current Residence</label>
-                        <input name="residency" value={profile.residency} onChange={handleChange} className="profile-input" />
-                    </div>
-
-                    <div style={inputGroup}>
-                        <label style={labelStyle}>Ancestral Clan</label>
-                        <input name="clan" value={profile.clan} onChange={handleChange} className="profile-input" />
-                    </div>
-
-                    <div style={inputGroup}>
-                        <label style={labelStyle}>Profession</label>
-                        <input name="profession" value={profile.profession} onChange={handleChange} className="profile-input" />
-                    </div>
-
-                    <button className="btn-primary" style={{ padding: '1rem', marginTop: '1rem', width: '100%' }}>Update Heritage Records</button>
-
-                    <input type="file" accept="image/*" ref={fileInputRef} onChange={handlePhotoChange} style={{ display: 'none' }} />
                 </div>
-            </div>
-
-            {/* Heritage Protection Section */}
-            <div className="glass animate-fade-in" style={{
-                maxWidth: '700px',
-                margin: '3rem auto',
-                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%)',
-                border: '1px solid rgba(99, 102, 241, 0.3)',
-                padding: '2rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '2rem',
-                flexWrap: 'wrap'
-            }}>
-                <div style={{
-                    width: '64px',
-                    height: '64px',
-                    background: 'rgba(99, 102, 241, 0.1)',
-                    borderRadius: '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '2rem'
-                }}>🛡️</div>
-                <div style={{ flex: 1 }}>
-                    <h3 style={{ fontSize: '1.25rem', color: '#fff', marginBottom: '0.5rem' }}>Heritage Protection Scheme</h3>
-                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: 0 }}>Protect your family branch in the event of an emergency. Link this profile to a <strong>MyHazina Funeral Plan</strong> to ensure your legacy continues.</p>
-                </div>
-                <a href="https://myhazina.org" target="_blank">
-                    <button className="btn-secondary" style={{ padding: '0.75rem 2rem' }}>Link MyHazina</button>
-                </a>
             </div>
 
             <style dangerouslySetInnerHTML={{
                 __html: `
-                .profile-input {
+                .profile-wrapper {
+                    min-height: 100vh;
+                    background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.05), transparent),
+                                radial-gradient(circle at bottom left, rgba(79, 70, 229, 0.03), transparent),
+                                #f8fafc;
+                    padding: 4rem 1rem 8rem 1rem;
+                }
+                .profile-header {
+                    text-align: center;
+                    margin-bottom: 4rem;
+                }
+                .bold-title {
+                    font-size: 3.5rem;
+                    font-weight: 950;
+                    letter-spacing: -0.05em;
+                    margin-bottom: 0.5rem;
+                }
+                .text-gradient {
+                    background: linear-gradient(to right, #1e293b, #475569);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                }
+                .subtitle {
+                    color: var(--accent);
+                    font-weight: 800;
+                    letter-spacing: 0.3em;
+                    font-size: 0.75rem;
+                }
+                .profile-grid {
+                    display: grid;
+                    grid-template-columns: 380px 1fr;
+                    gap: 3rem;
+                    max-width: 1200px;
+                    margin: 0 auto;
+                }
+                .glass-card {
+                    background: rgba(255, 255, 255, 0.8);
+                    backdrop-filter: blur(20px);
+                    border: 1px solid rgba(0, 0, 0, 0.05);
+                    border-radius: 32px;
+                    padding: 2.5rem;
+                    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
+                    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+                }
+                .completeness-dashboard span {
+                    color: #1e293b !important;
+                }
+                .sticky-top {
+                    position: sticky;
+                    top: 2rem;
+                }
+                .section-title {
+                    font-size: 1.1rem;
+                    font-weight: 900;
+                    color: #1e293b;
+                    margin-bottom: 2rem;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    letter-spacing: 0.05em;
+                }
+                .section-title .icon {
+                    background: rgba(99, 102, 241, 0.08);
+                    width: 36px;
+                    height: 36px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 10px;
+                    font-size: 1rem;
+                }
+                .form-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1.5fr;
+                    gap: 1.5rem;
+                }
+                .input-group label {
+                    display: block;
+                    font-size: 0.65rem;
+                    font-weight: 800;
+                    color: #64748b;
+                    text-transform: uppercase;
+                    letter-spacing: 0.1em;
+                    margin-bottom: 10px;
+                    margin-left: 4px;
+                }
+                .bold-input {
                     width: 100%;
-                    padding: 0.85rem 1rem;
-                    border-radius: 12px;
-                    border: 1px solid rgba(255,255,255,0.1);
-                    background: rgba(255,255,255,0.03);
-                    color: white;
+                    padding: 1.1rem 1.25rem;
+                    background: #ffffff;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 18px;
+                    color: #0f172a;
+                    font-weight: 600;
                     font-size: 0.95rem;
-                    font-family: inherit;
                     outline: none;
-                    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+                    transition: all 0.3s ease;
+                    text-overflow: ellipsis;
                 }
-                .profile-input:focus {
-                    background: rgba(255,255,255,0.08);
-                    border-color: var(--accent);
-                    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+                select.bold-input {
+                    padding-right: 2.5rem;
+                    appearance: none;
+                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+                    background-repeat: no-repeat;
+                    background-position: right 1rem center;
+                    background-size: 1.25rem;
                 }
-                .profile-photo-container:hover {
-                    box-shadow: 0 30px 60px rgba(0,0,0,0.6);
-                    transform: translateY(-5px);
+                .bold-input:focus {
+                    background: #ffffff;
                     border-color: var(--accent);
+                    box-shadow: 0 0 20px rgba(99, 102, 241, 0.1);
+                    transform: translateY(-2px);
+                }
+                .age-pill {
+                    background: var(--accent);
+                    color: #fff;
+                    padding: 2px 8px;
+                    border-radius: 6px;
+                    font-size: 0.6rem;
+                    margin-left: 8px;
+                }
+                .progress-track {
+                    height: 10px;
+                    background: #e2e8f0;
+                    border-radius: 20px;
+                    overflow: hidden;
+                    margin-bottom: 1.5rem;
+                }
+                .progress-bar {
+                    height: 100%;
+                    background: linear-gradient(to right, var(--accent), var(--accent-secondary));
+                    transition: width 1s ease;
+                }
+                .missing-tag {
+                    display: inline-block;
+                    font-size: 0.55rem;
+                    padding: 4px 10px;
+                    background: rgba(239, 68, 68, 0.08);
+                    color: #ef4444;
+                    border-radius: 6px;
+                    font-weight: 900;
+                    margin-right: 6px;
+                    margin-bottom: 6px;
+                }
+                .push-btn {
+                    transform: scale(1);
+                    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                    box-shadow: 0 20px 40px rgba(99, 102, 241, 0.2);
+                    border: none;
+                    background: var(--accent);
+                    color: #fff;
+                    cursor: pointer;
+                    border-radius: 18px;
+                }
+                .push-btn:hover:not(:disabled) {
+                    transform: scale(1.02) translateY(-2px);
+                    box-shadow: 0 25px 50px rgba(99, 102, 241, 0.3);
+                }
+                .push-btn:active {
+                    transform: scale(0.98);
+                }
+                .flip-btn {
+                    background: #f1f5f9;
+                    color: #475569;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 14px;
+                    padding: 0.75rem;
+                    font-weight: 700;
+                    font-size: 0.8rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .flip-btn:hover {
+                    background: #e2e8f0;
+                    color: #1e293b;
+                }
+                .mt-4 { margin-top: 1rem; }
+                .mt-6 { margin-top: 1.5rem; }
+                .mt-8 { margin-top: 2rem; }
+                
+                @media (max-width: 1024px) {
+                    .profile-grid {
+                        grid-template-columns: 1fr;
+                    }
+                    .sticky-top {
+                        position: static;
+                    }
+                    .bold-title {
+                        font-size: 2.5rem;
+                    }
+                }
+                @media (max-width: 640px) {
+                    .form-grid {
+                        grid-template-columns: 1fr;
+                    }
+                    .glass-card {
+                        padding: 1.5rem;
+                    }
                 }
             `}} />
         </div>
     );
 }
 
-const inputGroup = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.65rem'
-};
-
-const labelStyle = {
-    fontSize: '0.75rem',
-    fontWeight: '700',
-    color: 'var(--text-secondary)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    marginLeft: '2px'
-};
+const inputGroup = {};
+const labelStyle = {};
