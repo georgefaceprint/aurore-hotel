@@ -18,15 +18,18 @@ const translations = {
     bookBtn: "Check Availability",
     orderBtn: "Order Catering",
     footerText: "© 2026 Aurore Ecce Lubumbashi. All rights reserved.",
-    formName: "Full Name",
-    formEmail: "Email",
+    formName: "First Name",
+    formLastName: "Last Name",
+    formEmail: "Email address",
+    formPhone: "Phone number",
+    formCountry: "Country/Region",
     formCheckIn: "Check-in Date",
     formCheckOut: "Check-out Date",
     formType: "Room Type",
     formGuests: "Number of Guests (Adults/Children)",
     formSelectRoom: "Select Your Suite / Villa",
     formSubmit: "Request Reservation",
-    bookingSuccess: "Stay requested! Our team will contact you shortly for payment and check-in details.",
+    bookingSuccess: "Stay requested! Our team will contact you shortly via email or phone for confirmation.",
     adminDashboard: "Admin Dashboard",
     pendingBookings: "Pending Reservations",
     checkIn: "Check-in Guest",
@@ -89,15 +92,18 @@ const translations = {
     bookBtn: "Vérifier la Disponibilité",
     orderBtn: "Commander Traiteur",
     footerText: "© 2026 Aurore Ecce Lubumbashi. Tous droits réservés.",
-    formName: "Nom Complet",
-    formEmail: "Email",
+    formName: "Prénom",
+    formLastName: "Nom",
+    formEmail: "Adresse e-mail",
+    formPhone: "Numéro de téléphone",
+    formCountry: "Pays/Région",
     formCheckIn: "Date d'arrivée",
     formCheckOut: "Date de départ",
     formType: "Type de Chambre",
     formGuests: "Nombre d'invités (Adultes/Enfants)",
     formSelectRoom: "Sélectionnez votre suite / villa",
     formSubmit: "Demander Réservation",
-    bookingSuccess: "Séjour demandé ! Notre équipe vous contactera sous peu pour les détails du paiement et de l'enregistrement.",
+    bookingSuccess: "Séjour demandé ! Notre équipe vous contactera sous peu par e-mail ou par téléphone pour confirmation.",
     adminDashboard: "Tableau de Bord Admin",
     pendingBookings: "Réservations en Attente",
     checkIn: "Enregistrer Invité",
@@ -152,15 +158,18 @@ const App = () => {
   const [lang, setLang] = useState('fr');
   const [view, setView] = useState('home');
   const [isScrolled, setIsScrolled] = useState(false);
-  const [bookingFormData, setBookingFormData] = useState({
-    name: '',
-    email: '',
-    roomId: '',
-    checkIn: '',
-    checkOut: '',
-    guests: '2',
-    adults: '2',
-    children: '0'
+  const [bookingFormData, setBookingFormData] = useState({ 
+    firstName: '', 
+    lastName: '', 
+    email: '', 
+    phone: '', 
+    country: 'Democratic Republic of the Congo (+243)',
+    roomId: '', 
+    type: 'Room', 
+    checkIn: '', 
+    checkOut: '', 
+    adults: '1', 
+    children: '0' 
   });
   const [bookingStatus, setBookingStatus] = useState(null);
 
@@ -187,6 +196,7 @@ const App = () => {
 
   const [newEmployee, setNewEmployee] = useState({ name: '', role: 'Staff', shift: 'Morning' });
   const [selectedRoom, setSelectedRoom] = useState(null); // For Room Detail Modal
+  const [activeImg, setActiveImg] = useState(0);
 
   const [analyticsData] = useState([
     { month: 'Oct', revenue: 8500, bookings: 12 },
@@ -234,16 +244,9 @@ const App = () => {
     try {
       const room = rooms.find(r => r.id === bookingFormData.roomId);
       const newReservation = {
-        clientName: bookingFormData.name,
-        roomId: bookingFormData.roomId,
+        ...bookingFormData,
         roomName: room?.name || 'N/A',
-        checkIn: bookingFormData.checkIn,
-        checkOut: bookingFormData.checkOut,
-        adults: bookingFormData.adults,
-        children: bookingFormData.children,
-        type: bookingFormData.type || 'Stay',
         status: 'pending',
-        guests: (parseInt(bookingFormData.adults) + parseInt(bookingFormData.children)).toString(),
         createdAt: serverTimestamp()
       };
       
@@ -253,7 +256,7 @@ const App = () => {
       setTimeout(() => {
         setBookingStatus(null);
         setView('home');
-        setBookingFormData({ name: '', email: '', roomId: '', checkIn: '', checkOut: '', guests: '2', adults: '2', children: '0' });
+        setBookingFormData({ firstName: '', lastName: '', email: '', phone: '', country: 'Democratic Republic of the Congo (+243)', roomId: '', type: 'Room', checkIn: '', checkOut: '', adults: '1', children: '0' });
       }, 3000);
     } catch (error) {
       console.error("Error booking room:", error);
@@ -450,17 +453,77 @@ const App = () => {
               ))}
             </select>
           </div>
+          <div className="glass" style={{ padding: '1.5rem', marginBottom: '1.5rem', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Almost done! Just fill in the * required info</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formName} *</label>
+              <input
+                type="text"
+                required
+                className="admin-input"
+                style={{ width: '100%', marginTop: 0 }}
+                value={bookingFormData.firstName}
+                onChange={(e) => setBookingFormData({ ...bookingFormData, firstName: e.target.value })}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formLastName} *</label>
+              <input
+                type="text"
+                required
+                className="admin-input"
+                style={{ width: '100%', marginTop: 0 }}
+                value={bookingFormData.lastName}
+                onChange={(e) => setBookingFormData({ ...bookingFormData, lastName: e.target.value })}
+              />
+            </div>
+          </div>
+
           <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formName}</label>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formEmail} *</label>
             <input
-              type="text"
+              type="email"
               required
-              placeholder="Ex: Jean Mukendi"
               className="admin-input"
               style={{ width: '100%', marginTop: 0 }}
-              value={bookingFormData.name}
-              onChange={(e) => setBookingFormData({ ...bookingFormData, name: e.target.value })}
+              value={bookingFormData.email}
+              onChange={(e) => setBookingFormData({ ...bookingFormData, email: e.target.value })}
+              placeholder="Ex: jean@example.com"
             />
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.3rem', display: 'block' }}>Confirmation email sent to this address</span>
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formCountry} *</label>
+            <select
+              className="admin-input"
+              style={{ width: '100%', marginTop: 0 }}
+              value={bookingFormData.country}
+              onChange={(e) => setBookingFormData({ ...bookingFormData, country: e.target.value })}
+            >
+              <option value="Democratic Republic of the Congo (+243)">Democratic Republic of the Congo (+243)</option>
+              <option value="Zambia (+260)">Zambia (+260)</option>
+              <option value="Belgium (+32)">Belgium (+32)</option>
+              <option value="France (+33)">France (+33)</option>
+              <option value="USA (+1)">USA (+1)</option>
+            </select>
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>{t.formPhone} *</label>
+            <input
+              type="tel"
+              required
+              className="admin-input"
+              style={{ width: '100%', marginTop: 0 }}
+              value={bookingFormData.phone}
+              onChange={(e) => setBookingFormData({ ...bookingFormData, phone: e.target.value })}
+              placeholder="Ex: 81 234 5678"
+            />
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.3rem', display: 'block' }}>To verify your booking, and for the property to connect if needed</span>
           </div>
           <div style={{ marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div>
@@ -493,8 +556,8 @@ const App = () => {
               placeholder="2"
               className="admin-input"
               style={{ marginTop: 0 }}
-              value={bookingFormData.guests}
-              onChange={(e) => setBookingFormData({ ...bookingFormData, guests: e.target.value })}
+              value={parseInt(bookingFormData.adults) + parseInt(bookingFormData.children)}
+              readOnly
             />
           </div>
           <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '1rem' }}>{t.formSubmit}</button>
@@ -503,7 +566,7 @@ const App = () => {
     </section>
   );
 
-  const handleRoomSubmit = async (e) => {
+  const handleAddRoom = async (e) => {
     e.preventDefault();
     try {
       const roomData = { 
@@ -680,19 +743,24 @@ const App = () => {
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Client</th>
-                  <th>Date</th>
-                  <th>{t.roomType}</th>
-                  <th>{t.status}</th>
-                  <th>{t.actions}</th>
+                  <th>Guest</th>
+                  <th>Contact</th>
+                  <th>Stay</th>
+                  <th>Space</th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {reservations.map(res => (
                   <tr key={res.id}>
-                    <td>{res.clientName}</td>
-                    <td>{res.date}</td>
-                    <td>{res.type}</td>
+                    <td>{res.firstName} {res.lastName}</td>
+                    <td>
+                      <div style={{ fontSize: '0.85rem' }}>{res.email}</div>
+                      <div style={{ fontSize: '0.85rem' }}>{res.phone}</div>
+                    </td>
+                    <td>{res.checkIn} to {res.checkOut}</td>
+                    <td>{rooms.find(r => r.id === res.roomId)?.name || 'Deleted Space'}</td>
                     <td>
                       <span className={`status-badge status-${res.status}`}>
                         {res.status}
