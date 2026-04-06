@@ -20,11 +20,13 @@ const translations = {
     footerText: "© 2026 Aurore Ecce Lubumbashi. All rights reserved.",
     formName: "Full Name",
     formEmail: "Email",
-    formDate: "Event Date",
-    formType: "Event Type",
-    formGuests: "Number of Guests",
+    formCheckIn: "Check-in Date",
+    formCheckOut: "Check-out Date",
+    formType: "Room Type",
+    formGuests: "Number of Guests (Adults/Children)",
+    formSelectRoom: "Select Your Room / Villa",
     formSubmit: "Request Reservation",
-    bookingSuccess: "Booking requested! Our team will contact you shortly for cash payment details.",
+    bookingSuccess: "Stay requested! Our team will contact you shortly for payment and check-in details.",
     adminDashboard: "Admin Dashboard",
     pendingBookings: "Pending Reservations",
     checkIn: "Check-in Guest",
@@ -84,11 +86,13 @@ const translations = {
     footerText: "© 2026 Aurore Ecce Lubumbashi. Tous droits réservés.",
     formName: "Nom Complet",
     formEmail: "Email",
-    formDate: "Date de l'Événement",
-    formType: "Type d'Événement",
-    formGuests: "Nombre d'Invités",
+    formCheckIn: "Date d'arrivée",
+    formCheckOut: "Date de départ",
+    formType: "Type de Chambre",
+    formGuests: "Nombre d'invités (Adultes/Enfants)",
+    formSelectRoom: "Sélectionnez votre chambre / villa",
     formSubmit: "Demander Réservation",
-    bookingSuccess: "Réservation demandée ! Notre équipe vous contactera sous peu pour les détails du paiement en espèces.",
+    bookingSuccess: "Séjour demandé ! Notre équipe vous contactera sous peu pour les détails du paiement et de l'enregistrement.",
     adminDashboard: "Tableau de Bord Admin",
     pendingBookings: "Réservations en Attente",
     checkIn: "Enregistrer Invité",
@@ -141,9 +145,10 @@ const App = () => {
   const [bookingFormData, setBookingFormData] = useState({
     name: '',
     email: '',
-    date: '',
-    type: 'wedding',
-    guests: ''
+    roomId: '',
+    checkIn: '',
+    checkOut: '',
+    guests: '2'
   });
   const [bookingStatus, setBookingStatus] = useState(null);
 
@@ -214,10 +219,14 @@ const App = () => {
   const handleBookingSubmit = async (e) => {
     e.preventDefault();
     try {
+      const room = rooms.find(r => r.id === bookingFormData.roomId);
       const newReservation = {
         clientName: bookingFormData.name,
-        date: bookingFormData.date,
-        type: bookingFormData.type.charAt(0).toUpperCase() + bookingFormData.type.slice(1),
+        roomId: bookingFormData.roomId,
+        roomName: room?.name || 'N/A',
+        checkIn: bookingFormData.checkIn,
+        checkOut: bookingFormData.checkOut,
+        type: bookingFormData.type || 'Stay',
         status: 'pending',
         guests: bookingFormData.guests,
         createdAt: serverTimestamp()
@@ -229,7 +238,7 @@ const App = () => {
       setTimeout(() => {
         setBookingStatus(null);
         setView('home');
-        setBookingFormData({ name: '', email: '', date: '', type: 'wedding', guests: '' });
+        setBookingFormData({ name: '', email: '', roomId: '', checkIn: '', checkOut: '', guests: '2' });
       }, 3000);
     } catch (error) {
       console.error("Error booking room:", error);
@@ -301,7 +310,7 @@ const App = () => {
                   style={{ flex: 1, padding: '0.6rem' }}
                   disabled={!room.isAvailable}
                   onClick={() => {
-                    setBookingFormData({ ...bookingFormData, type: room.type.toLowerCase() });
+                    setBookingFormData({ ...bookingFormData, roomId: room.id, type: room.type });
                     setView('booking');
                   }}
                 >
@@ -335,7 +344,7 @@ const App = () => {
                 className="btn-secondary"
                 style={{ width: '100%' }}
                 onClick={() => {
-                  setBookingFormData({ ...bookingFormData, type: room.type.toLowerCase() });
+                  setBookingFormData({ ...bookingFormData, roomId: room.id, type: room.type });
                   setView('booking');
                 }}
               >
@@ -358,6 +367,26 @@ const App = () => {
       ) : (
         <form className="glass" style={{ padding: '2rem', maxWidth: '600px', margin: '0 auto' }} onSubmit={handleBookingSubmit}>
           <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formSelectRoom}</label>
+            <select
+              required
+              className="admin-input"
+              style={{ width: '100%', marginTop: 0 }}
+              value={bookingFormData.roomId}
+              onChange={(e) => {
+                const room = rooms.find(r => r.id === e.target.value);
+                setBookingFormData({ ...bookingFormData, roomId: e.target.value, type: room?.type || '' });
+              }}
+            >
+              <option value="">-- Choose a Space --</option>
+              {rooms.map(room => (
+                <option key={room.id} value={room.id} disabled={!room.isAvailable}>
+                  {room.name} ({room.type}) - ${room.price} {room.isAvailable ? '' : `(${t.reserved})`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formName}</label>
             <input
               type="text"
@@ -368,42 +397,42 @@ const App = () => {
               onChange={(e) => setBookingFormData({ ...bookingFormData, name: e.target.value })}
             />
           </div>
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formDate}</label>
-            <input
-              type="date"
-              required
-              style={{ width: '100%', padding: '0.8rem', background: '#ffffff10', border: '1px solid #ffffff20', borderRadius: '4px', color: 'white' }}
-              value={bookingFormData.date}
-              onChange={(e) => setBookingFormData({ ...bookingFormData, date: e.target.value })}
-            />
-          </div>
           <div style={{ marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formType}</label>
-              <select
-                style={{ width: '100%', padding: '0.8rem', background: '#0a192f', border: '1px solid #ffffff20', borderRadius: '4px', color: 'white' }}
-                value={bookingFormData.type}
-                onChange={(e) => setBookingFormData({ ...bookingFormData, type: e.target.value })}
-              >
-                <option value="wedding">Mariage</option>
-                <option value="conference">Conférence</option>
-                <option value="birthday">Anniversaire</option>
-                <option value="party">Fête Privée</option>
-              </select>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formCheckIn}</label>
+              <input
+                type="date"
+                required
+                className="admin-input"
+                style={{ marginTop: 0 }}
+                value={bookingFormData.checkIn}
+                onChange={(e) => setBookingFormData({ ...bookingFormData, checkIn: e.target.value })}
+              />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formGuests}</label>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formCheckOut}</label>
               <input
-                type="number"
-                placeholder="200"
-                style={{ width: '100%', padding: '0.8rem', background: '#ffffff10', border: '1px solid #ffffff20', borderRadius: '4px', color: 'white' }}
-                value={bookingFormData.guests}
-                onChange={(e) => setBookingFormData({ ...bookingFormData, guests: e.target.value })}
+                type="date"
+                required
+                className="admin-input"
+                style={{ marginTop: 0 }}
+                value={bookingFormData.checkOut}
+                onChange={(e) => setBookingFormData({ ...bookingFormData, checkOut: e.target.value })}
               />
             </div>
           </div>
-          <button type="submit" className="btn-primary" style={{ width: '100%' }}>{t.formSubmit}</button>
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>{t.formGuests}</label>
+            <input
+              type="number"
+              placeholder="2"
+              className="admin-input"
+              style={{ marginTop: 0 }}
+              value={bookingFormData.guests}
+              onChange={(e) => setBookingFormData({ ...bookingFormData, guests: e.target.value })}
+            />
+          </div>
+          <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '1rem' }}>{t.formSubmit}</button>
         </form>
       )}
     </section>
