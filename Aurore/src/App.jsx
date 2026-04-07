@@ -90,7 +90,8 @@ const translations = {
     permAmenities: "Manage Amenities",
     permEmployees: "Manage Personnel",
     permAnalytics: "View Analytics",
-    permChats: "Guest Relations"
+    permChats: "Guest Relations",
+    empPassword: "Login Password"
   },
   fr: {
     heroTitle: "L'Excellence Aurore Ecce",
@@ -175,7 +176,8 @@ const translations = {
     permAmenities: "Gérer Équipements",
     permEmployees: "Gérer Personnel",
     permAnalytics: "Voir Analyses",
-    permChats: "Relations Clients"
+    permChats: "Relations Clients",
+    empPassword: "Mot de passe Connexion"
   }
 };
 
@@ -257,6 +259,7 @@ const App = () => {
     shift: 'Morning',
     permissions: ['reservations'] 
   });
+  const [editingEmployeeId, setEditingEmployeeId] = useState(null);
   const [selectedRoom, setSelectedRoom] = useState(null); // For Room Detail Modal
   const [activeImg, setActiveImg] = useState(0);
 
@@ -876,6 +879,19 @@ const App = () => {
     }
   };
 
+  const handleUpdateEmployee = async (e) => {
+    e.preventDefault();
+    try {
+      const empRef = doc(db, 'employees', editingEmployeeId);
+      await updateDoc(empRef, { ...newEmployee });
+      setEditingEmployeeId(null);
+      setNewEmployee({ name: '', email: '', password: '', role: 'Staff', shift: 'Morning', permissions: ['reservations'] });
+      alert('✅ Employee updated successfully!');
+    } catch (err) {
+      console.error('Update Employee Error:', err);
+    }
+  };
+
   const handleImageUpload = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -951,7 +967,7 @@ const App = () => {
         status: 'Active', 
         createdAt: serverTimestamp() 
       });
-      setNewEmployee({ name: '', email: '', role: 'Staff', shift: 'Morning', permissions: [] });
+      setNewEmployee({ name: '', email: '', password: '', role: 'Staff', shift: 'Morning', permissions: [] });
     } catch (err) { console.error(err); }
   };
   
@@ -1086,6 +1102,7 @@ const App = () => {
               </div>
               {loginError && <p style={{ color: '#ff4d4d', fontSize: '0.8rem', marginBottom: '1rem' }}>Invalid staff credentials.</p>}
               <button type="submit" className="btn-primary" style={{ width: '100%' }}>Access Dashboard</button>
+              <button type="button" className="btn-link" style={{ marginTop: '1rem', color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem' }} onClick={() => handleResetStaffPassword(adminCredentials.email)}>Forgot your password?</button>
             </form>
           </div>
         </section>
@@ -1299,8 +1316,8 @@ const App = () => {
         {adminActiveTab === 'employees' && (
           <div className="fade-in-up">
             <div className="glass" style={{ padding: '2rem', marginBottom: '2rem' }}>
-              <h3>{t.addEmployee}</h3>
-              <form onSubmit={handleAddEmployee} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '1.5rem' }}>
+              <h3>{editingEmployeeId ? 'Edit Employee' : t.addEmployee}</h3>
+              <form onSubmit={editingEmployeeId ? handleUpdateEmployee : handleAddEmployee} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '1.5rem' }}>
                 <div className="admin-form-group">
                   <label>{t.empName}</label>
                   <input className="admin-input" value={newEmployee.name} onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })} required />
@@ -1324,6 +1341,10 @@ const App = () => {
                     <option value="Evening">Evening</option>
                     <option value="Night">Night</option>
                   </select>
+                </div>
+                <div className="admin-form-group">
+                  <label>{t.empPassword}</label>
+                  <input className="admin-input" type="text" value={newEmployee.password} onChange={(e) => setNewEmployee({ ...newEmployee, password: e.target.value })} required />
                 </div>
                 
                 <div className="admin-form-group" style={{ gridColumn: '1 / -1' }}>
@@ -1349,7 +1370,10 @@ const App = () => {
                   </div>
                 </div>
 
-                <button type="submit" className="btn-primary" style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>{t.addEmployee}</button>
+                <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                  <button type="submit" className="btn-primary" style={{ flex: 1 }}>{editingEmployeeId ? 'Update Employee' : t.addEmployee}</button>
+                  {editingEmployeeId && <button type="button" className="btn-secondary" onClick={() => { setEditingEmployeeId(null); setNewEmployee({ name: '', email: '', password: '', role: 'Staff', shift: 'Morning', permissions: ['reservations'] }); }}>Cancel</button>}
+                </div>
               </form>
             </div>
 
@@ -1382,6 +1406,7 @@ const App = () => {
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                          <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }} onClick={() => { setEditingEmployeeId(emp.id); setNewEmployee({ ...emp }); }}>Modifier / Edit</button>
                           <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', color: 'var(--accent-gold)', borderColor: 'var(--accent-gold)' }} onClick={() => handleResetStaffPassword(emp.email)}>Reset Link</button>
                           <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', color: '#ff4d4d', borderColor: '#ff4d4d' }} onClick={() => handleRemoveEmployee(emp.id)}>Remove</button>
                         </div>
