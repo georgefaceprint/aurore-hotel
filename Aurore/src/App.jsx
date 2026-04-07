@@ -299,18 +299,15 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    if (user && employees.length > 0) {
+    if (user) {
       if (user.email === ADMIN_EMAIL) {
         setIsAdminLoggedIn(true);
         setCurrentUserEmployee({ name: 'Super Admin', role: 'Super Admin', permissions: ['reservations', 'rooms', 'amenities', 'employees', 'analytics', 'chats'] });
-      } else {
+      } else if (employees.length > 0) {
         const emp = employees.find(e => e.email === user.email);
         if (emp) {
           setIsAdminLoggedIn(true);
           setCurrentUserEmployee(emp);
-          if (adminActiveTab === 'overview') {
-             // default ok
-          }
         } else {
           setIsAdminLoggedIn(false);
           setCurrentUserEmployee(null);
