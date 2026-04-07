@@ -3,7 +3,7 @@ import './index.css';
 import { db, storage, auth } from './firebase';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, doc, deleteDoc, where, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, signInWithEmailAndPassword } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import emailjs from '@emailjs/browser';
 
 const translations = {
@@ -231,6 +231,17 @@ const App = () => {
 
   const [newRoom, setNewRoom] = useState({ name: '', number: '', price: '', capacity: '', type: 'Room', amenities: [], images: '' });
   const [editingRoomId, setEditingRoomId] = useState(null);
+
+  const handleResetStaffPassword = async (email) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      alert('✅ Password reset email sent to ' + email);
+    } catch (error) {
+      console.error('Reset error:', error);
+      alert('❌ Failed: User must be registered in Firebase Auth first.');
+    }
+  };
+
   const [uploading, setUploading] = useState(false);
   const [newAmenity, setNewAmenity] = useState({ name: '', category: 'General' });
 
@@ -241,9 +252,10 @@ const App = () => {
   const [newEmployee, setNewEmployee] = useState({ 
     name: '', 
     email: '', 
+    password: '',
     role: 'Staff', 
     shift: 'Morning',
-    permissions: [] 
+    permissions: ['reservations'] 
   });
   const [selectedRoom, setSelectedRoom] = useState(null); // For Room Detail Modal
   const [activeImg, setActiveImg] = useState(0);
@@ -437,8 +449,21 @@ const App = () => {
     e.preventDefault();
     setLoginError(false);
     try {
-      const result = await signInWithEmailAndPassword(auth, adminCredentials.email, adminCredentials.password);
-      // Login check handled by useEffect on user/employees state
+      // 1. Check if Super Admin (Firebase Auth)
+      if (adminCredentials.email === ADMIN_EMAIL) {
+        await signInWithEmailAndPassword(auth, adminCredentials.email, adminCredentials.password);
+        return;
+      }
+
+      // 2. Check if Staff (Firestore Internal Password)
+      const emp = employees.find(e => e.email === adminCredentials.email && e.password === adminCredentials.password);
+      if (emp) {
+        setIsAdminLoggedIn(true);
+        setCurrentUserEmployee(emp);
+        setLoginError(false);
+      } else {
+        setLoginError(true);
+      }
     } catch (error) {
       console.error('Admin login error:', error);
       setLoginError(true);
@@ -1353,9 +1378,13 @@ const App = () => {
                             </span>
                           ))}
                         </div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Shift: {emp.shift} | Pass: {emp.password}</div>
                       </td>
-                      <td>
-                        <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }} onClick={() => handleRemoveEmployee(emp.id)}>Remove</button>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                          <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', color: 'var(--accent-gold)', borderColor: 'var(--accent-gold)' }} onClick={() => handleResetStaffPassword(emp.email)}>Reset Link</button>
+                          <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', color: '#ff4d4d', borderColor: '#ff4d4d' }} onClick={() => handleRemoveEmployee(emp.id)}>Remove</button>
+                        </div>
                       </td>
                     </tr>
                   ))}
