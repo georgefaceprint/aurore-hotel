@@ -82,7 +82,15 @@ const translations = {
     children: "Children",
     checkIn: "Arrival",
     checkOut: "Departure",
-    roomCapacity: "Capacity"
+    roomCapacity: "Capacity",
+    empEmail: "Email",
+    permissions: "Permissions",
+    permReservations: "Manage Reservations",
+    permRooms: "Manage Spaces",
+    permAmenities: "Manage Amenities",
+    permEmployees: "Manage Personnel",
+    permAnalytics: "View Analytics",
+    permChats: "Guest Relations"
   },
   fr: {
     heroTitle: "L'Excellence Aurore Ecce",
@@ -159,7 +167,15 @@ const translations = {
     children: "Enfants",
     checkIn: "Date d'arrivée",
     checkOut: "Date de départ",
-    roomCapacity: "Capacité"
+    roomCapacity: "Capacité",
+    empEmail: "E-mail",
+    permissions: "Permissions",
+    permReservations: "Gérer Réservations",
+    permRooms: "Gérer Espaces",
+    permAmenities: "Gérer Équipements",
+    permEmployees: "Gérer Personnel",
+    permAnalytics: "Voir Analyses",
+    permChats: "Relations Clients"
   }
 };
 
@@ -201,6 +217,7 @@ const App = () => {
 
   // Auth State
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [currentUserEmployee, setCurrentUserEmployee] = useState(null);
   const [adminCredentials, setAdminCredentials] = useState({ email: '', password: '' });
   const [loginError, setLoginError] = useState(false);
 
@@ -221,7 +238,13 @@ const App = () => {
   const [chatOpen, setChatOpen] = useState(false);
   const [currentMsg, setCurrentMsg] = useState('');
 
-  const [newEmployee, setNewEmployee] = useState({ name: '', role: 'Staff', shift: 'Morning' });
+  const [newEmployee, setNewEmployee] = useState({ 
+    name: '', 
+    email: '', 
+    role: 'Staff', 
+    shift: 'Morning',
+    permissions: [] 
+  });
   const [selectedRoom, setSelectedRoom] = useState(null); // For Room Detail Modal
   const [activeImg, setActiveImg] = useState(0);
 
@@ -256,7 +279,13 @@ const App = () => {
     const unsubEmployees = syncData("employees", setEmployees, "name");
     const unsubMessages = syncData("messages", setChatMessages, "timestamp");
 
-    const unsubAuth = onAuthStateChanged(auth, (u) => setUser(u));
+    const unsubAuth = onAuthStateChanged(auth, u => {
+      setUser(u);
+      if (!u) {
+        setIsAdminLoggedIn(false);
+        setCurrentUserEmployee(null);
+      }
+    });
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
@@ -268,6 +297,27 @@ const App = () => {
       unsubMessages();
     };
   }, []);
+
+  useEffect(() => {
+    if (user && employees.length > 0) {
+      if (user.email === ADMIN_EMAIL) {
+        setIsAdminLoggedIn(true);
+        setCurrentUserEmployee({ name: 'Super Admin', role: 'Super Admin', permissions: ['reservations', 'rooms', 'amenities', 'employees', 'analytics', 'chats'] });
+      } else {
+        const emp = employees.find(e => e.email === user.email);
+        if (emp) {
+          setIsAdminLoggedIn(true);
+          setCurrentUserEmployee(emp);
+          if (adminActiveTab === 'overview') {
+             // default ok
+          }
+        } else {
+          setIsAdminLoggedIn(false);
+          setCurrentUserEmployee(null);
+        }
+      }
+    }
+  }, [user, employees]);
 
   const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
@@ -391,12 +441,7 @@ const App = () => {
     setLoginError(false);
     try {
       const result = await signInWithEmailAndPassword(auth, adminCredentials.email, adminCredentials.password);
-      if (result.user.email === ADMIN_EMAIL) {
-        setIsAdminLoggedIn(true);
-      } else {
-        await signOut(auth);
-        setLoginError(true);
-      }
+      // Login check handled by useEffect on user/employees state
     } catch (error) {
       console.error('Admin login error:', error);
       setLoginError(true);
@@ -879,9 +924,22 @@ const App = () => {
   const handleAddEmployee = async (e) => {
     e.preventDefault();
     try {
-      await addDoc(collection(db, "employees"), { ...newEmployee, status: 'Active', createdAt: serverTimestamp() });
-      setNewEmployee({ name: '', role: 'Staff', shift: 'Morning' });
+      await addDoc(collection(db, "employees"), { 
+        ...newEmployee, 
+        status: 'Active', 
+        createdAt: serverTimestamp() 
+      });
+      setNewEmployee({ name: '', email: '', role: 'Staff', shift: 'Morning', permissions: [] });
     } catch (err) { console.error(err); }
+  };
+  
+  const togglePermission = (perm) => {
+    const current = newEmployee.permissions || [];
+    if (current.includes(perm)) {
+      setNewEmployee({ ...newEmployee, permissions: current.filter(p => p !== perm) });
+    } else {
+      setNewEmployee({ ...newEmployee, permissions: [...current, perm] });
+    }
   };
 
   const handleRemoveEmployee = async (id) => {
@@ -1043,11 +1101,12 @@ const App = () => {
         </div>
 
         <div className="admin-tabs">
-          <button className={`admin-tab ${adminActiveTab === 'reservations' ? 'active' : ''}`} onClick={() => setAdminActiveTab('reservations')}>{t.adminReservations}</button>
-          <button className={`admin-tab ${adminActiveTab === 'rooms' ? 'active' : ''}`} onClick={() => setAdminActiveTab('rooms')}>{t.adminRooms}</button>
-          <button className={`admin-tab ${adminActiveTab === 'amenities' ? 'active' : ''}`} onClick={() => setAdminActiveTab('amenities')}>{t.adminAmenities}</button>
-          <button className={`admin-tab ${adminActiveTab === 'chats' ? 'active' : ''}`} onClick={() => setAdminActiveTab('chats')}>{t.adminChats}</button>
-          <button className={`admin-tab ${adminActiveTab === 'analytics' ? 'active' : ''}`} onClick={() => setAdminActiveTab('analytics')}>{t.adminAnalytics}</button>
+          {currentUserEmployee?.permissions?.includes('reservations') && <button className={`admin-tab ${adminActiveTab === 'reservations' ? 'active' : ''}`} onClick={() => setAdminActiveTab('reservations')}>{t.adminReservations}</button>}
+          {currentUserEmployee?.permissions?.includes('rooms') && <button className={`admin-tab ${adminActiveTab === 'rooms' ? 'active' : ''}`} onClick={() => setAdminActiveTab('rooms')}>{t.adminRooms}</button>}
+          {currentUserEmployee?.permissions?.includes('amenities') && <button className={`admin-tab ${adminActiveTab === 'amenities' ? 'active' : ''}`} onClick={() => setAdminActiveTab('amenities')}>{t.adminAmenities}</button>}
+          {currentUserEmployee?.permissions?.includes('chats') && <button className={`admin-tab ${adminActiveTab === 'chats' ? 'active' : ''}`} onClick={() => setAdminActiveTab('chats')}>{t.adminChats}</button>}
+          {currentUserEmployee?.permissions?.includes('employees') && <button className={`admin-tab ${adminActiveTab === 'employees' ? 'active' : ''}`} onClick={() => setAdminActiveTab('employees')}>{t.adminEmployees}</button>}
+          {currentUserEmployee?.permissions?.includes('analytics') && <button className={`admin-tab ${adminActiveTab === 'analytics' ? 'active' : ''}`} onClick={() => setAdminActiveTab('analytics')}>{t.adminAnalytics}</button>}
         </div>
 
         {adminActiveTab === 'analytics' && (
@@ -1211,6 +1270,100 @@ const App = () => {
               ) : (
                 <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>Select a guest to view their thread</div>
               )}
+            </div>
+          </div>
+        )}
+
+        {adminActiveTab === 'employees' && (
+          <div className="fade-in-up">
+            <div className="glass" style={{ padding: '2rem', marginBottom: '2rem' }}>
+              <h3>{t.addEmployee}</h3>
+              <form onSubmit={handleAddEmployee} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '1.5rem' }}>
+                <div className="admin-form-group">
+                  <label>{t.empName}</label>
+                  <input className="admin-input" value={newEmployee.name} onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })} required />
+                </div>
+                <div className="admin-form-group">
+                  <label>{t.empEmail}</label>
+                  <input className="admin-input" type="email" value={newEmployee.email} onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })} required />
+                </div>
+                <div className="admin-form-group">
+                  <label>{t.empRole}</label>
+                  <select className="admin-input" value={newEmployee.role} onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value })}>
+                    <option value="Staff">Staff</option>
+                    <option value="Manager">Manager</option>
+                    <option value="Admin">Admin</option>
+                  </select>
+                </div>
+                <div className="admin-form-group">
+                  <label>{t.empShift}</label>
+                  <select className="admin-input" value={newEmployee.shift} onChange={(e) => setNewEmployee({ ...newEmployee, shift: e.target.value })}>
+                    <option value="Morning">Morning</option>
+                    <option value="Evening">Evening</option>
+                    <option value="Night">Night</option>
+                  </select>
+                </div>
+                
+                <div className="admin-form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ marginBottom: '1rem', display: 'block' }}>{t.permissions}</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+                    {[
+                      { key: 'reservations', label: t.permReservations },
+                      { key: 'rooms', label: t.permRooms },
+                      { key: 'amenities', label: t.permAmenities },
+                      { key: 'employees', label: t.permEmployees },
+                      { key: 'analytics', label: t.permAnalytics },
+                      { key: 'chats', label: t.permChats }
+                    ].map(perm => (
+                      <label key={perm.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', cursor: 'pointer', padding: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={newEmployee.permissions?.includes(perm.key)} 
+                          onChange={() => togglePermission(perm.key)}
+                        />
+                        {perm.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <button type="submit" className="btn-primary" style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>{t.addEmployee}</button>
+              </form>
+            </div>
+
+            <div className="glass" style={{ padding: '2rem' }}>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>{t.empName}</th>
+                    <th>{t.empEmail}</th>
+                    <th>{t.empRole}</th>
+                    <th>{t.permissions}</th>
+                    <th>{t.actions}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.map(emp => (
+                    <tr key={emp.id}>
+                      <td>{emp.name}</td>
+                      <td>{emp.email}</td>
+                      <td><span className="amenity-pill">{emp.role}</span></td>
+                      <td>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                          {emp.permissions?.map(p => (
+                            <span key={p} style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(241,180,60,0.1)', color: 'var(--accent-gold)', borderRadius: '4px', border: '1px solid var(--accent-gold)' }}>
+                              {p}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td>
+                        <button className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }} onClick={() => handleRemoveEmployee(emp.id)}>Remove</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
