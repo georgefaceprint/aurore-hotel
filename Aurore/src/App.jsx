@@ -222,7 +222,7 @@ const App = () => {
   const [loginError, setLoginError] = useState(false);
 
   // Admin State
-  const [adminActiveTab, setAdminActiveTab] = useState('overview');
+  const [adminActiveTab, setAdminActiveTab] = useState('reservations');
   const [rooms, setRooms] = useState([]);
   const [amenities, setAmenities] = useState([]);
   const [employees, setEmployees] = useState([]);
