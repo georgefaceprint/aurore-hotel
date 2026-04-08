@@ -234,6 +234,14 @@ const App = () => {
   const [newRoom, setNewRoom] = useState({ name: '', number: '', price: '', capacity: '', type: 'Room', amenities: [], images: '' });
   const [editingRoomId, setEditingRoomId] = useState(null);
 
+  const getOptimizedUrl = (url, width) => {
+    if (!url) return 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=800&q=80';
+    if (url.includes('unsplash.com')) {
+      return `${url}${url.includes('?') ? '&' : '?'}auto=format&fit=crop&w=${width}&q=80`;
+    }
+    return url; // Don't append unsplash params to Firebase or other URLs
+  };
+
   const handleResetStaffPassword = async (email) => {
     try {
       await sendPasswordResetEmail(auth, email);
@@ -481,7 +489,7 @@ const App = () => {
   const renderHome = () => (
     <>
       <section className="hero" style={{ 
-        backgroundImage: `linear-gradient(rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.45)), url('${heroImages[activeHeroIdx]}?auto=format&fit=crop&w=1600&q=80')`,
+        backgroundImage: `linear-gradient(rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.45)), url('${getOptimizedUrl(heroImages[activeHeroIdx], 1600)}')`,
         transition: 'background-image 1.5s ease-in-out'
       }}>
         <div className="app-container fade-in-up">
@@ -536,7 +544,7 @@ const App = () => {
           {rooms.filter(r => r.type === 'Room' || r.type === 'Villa').map(room => (
             <div className="listing-item glass fade-in-up" key={room.id}>
               <div className="listing-img-container">
-                <img src={room.images ? room.images.split(',')[0] : room.image} alt={room.name} onClick={() => setSelectedRoom(room)} style={{ cursor: 'pointer' }} />
+                <img src={getOptimizedUrl(room.images ? room.images.split(',')[0] : room.image, 600)} alt={room.name} onClick={() => setSelectedRoom(room)} style={{ cursor: 'pointer' }} />
                 <span className={`availability-badge ${room.isAvailable ? 'available' : 'booked'}`}>
                   {room.isAvailable ? t.available : t.reserved}
                 </span>
@@ -585,7 +593,7 @@ const App = () => {
             <div className="card" key={room.id}>
               <div style={{ position: 'relative' }}>
                 <img 
-                  src={`${(room.images ? room.images.split(',')[0] : room.image)}?auto=format&fit=crop&w=600&q=70`} 
+                  src={getOptimizedUrl((room.images ? room.images.split(',')[0] : room.image), 600)} 
                   alt={room.name} 
                   loading="lazy"
                 />
@@ -659,7 +667,7 @@ const App = () => {
             'https://images.unsplash.com/photo-1505232458593-29695b8a910d'
           ].map((url, i) => (
             <div key={i} className="glass" style={{ height: '300px', overflow: 'hidden', padding: 0 }}>
-              <img src={`${url}?auto=format&fit=crop&w=600&q=70`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Event" />
+              <img src={getOptimizedUrl(url, 600)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Event" />
             </div>
           ))}
         </div>
@@ -1433,7 +1441,7 @@ const App = () => {
           <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth > 768 ? '1fr 1fr' : '1fr', gap: '2rem', padding: '2rem' }}>
             <div className="gallery-section">
               <img 
-                src={`${images[activeImg]}?auto=format&fit=crop&w=800&q=80`} 
+                src={getOptimizedUrl(images[activeImg], 800)} 
                 alt={selectedRoom.name} 
                 style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', borderRadius: '8px' }}
               />
@@ -1441,7 +1449,7 @@ const App = () => {
                 {images.map((img, i) => (
                   <img 
                     key={i}
-                    src={`${img}?auto=format&fit=crop&w=150&q=60`} 
+                    src={getOptimizedUrl(img, 150)} 
                     alt={`Thumb ${i}`}
                     className={activeImg === i ? 'active' : ''}
                     onClick={() => setActiveImg(i)}
